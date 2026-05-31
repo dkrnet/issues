@@ -1,0 +1,122 @@
+# /etc/issues.conf
+#
+# Optional site configuration for the Issues CGI application.
+#
+# This file uses simple KEY=value lines. Lines beginning with # are comments.
+# Inline comments beginning with # are also ignored.
+#
+# All values below are commented out. Uncomment and edit only the values you
+# want to override. If this file does not exist, or if a value is omitted, the
+# application uses its built-in default.
+
+# DB_FILE
+# Path to the SQLite issue database.
+# Default: /var/lib/issues/issues.db
+#DB_FILE=/var/lib/issues/issues.db
+
+# PER_USER_CONFIG_DIR
+# Directory where per-user filter and preference JSON files are stored.
+# Default: /var/lib/issues/config
+#PER_USER_CONFIG_DIR=/var/lib/issues/config
+
+# ASSIGNEE_GROUP
+# System group used to build the list of users who may be assigned issues.
+# Default: users
+#ASSIGNEE_GROUP=users
+
+# ASSIGNEE_EXCLUDE
+# Comma-separated list of usernames to exclude from the assignable-user list,
+# even if they belong to ASSIGNEE_GROUP.
+# Default: empty
+#ASSIGNEE_EXCLUDE=
+
+# ADMINS_GROUP
+# System group whose members are recognized as application administrators.
+# Default: wheel
+#ADMINS_GROUP=wheel
+
+# ADMINS_GROUP_EXCLUDE
+# Comma-separated list of usernames to exclude from administrator recognition,
+# even if they belong to ADMINS_GROUP.
+# Default: empty
+#ADMINS_GROUP_EXCLUDE=
+
+# BANNER_FILE
+# URL/path for the banner image displayed at the top of application pages.
+# Leave empty to display no banner image.
+# Default: empty
+#BANNER_FILE=
+
+# BANNER_DIMENSIONS
+# Optional banner image dimensions in WIDTHxHEIGHT form, such as 750x54.
+# Used only when BANNER_FILE is non-empty and the value is valid.
+# Default: empty
+#BANNER_DIMENSIONS=
+
+# MAX_UPLOAD_BYTES
+# Maximum allowed attachment upload size, in bytes.
+# Default: 10485760
+#MAX_UPLOAD_BYTES=10485760
+
+# MAX_FILENAME_LEN
+# Maximum safe length for stored attachment filenames.
+# Default: 255
+#MAX_FILENAME_LEN=255
+
+# DEFAULT_CLOSING_COMMENT
+# Default comment text used when a close or cancel action is submitted with an
+# empty comment.
+# Default: no closing comment provided
+#DEFAULT_CLOSING_COMMENT=no closing comment provided
+
+# EMAIL_NOTIFICATIONS_ENABLED
+# Enables or disables optional issue notification email. When disabled, the
+# application does not invoke the local mail command.
+# Accepted true values include true, yes, 1, and on. Accepted false values
+# include false, no, 0, and off.
+# Default: False
+#EMAIL_NOTIFICATIONS_ENABLED=False
+
+# SENDMAIL_PATH
+# Absolute path to the local sendmail-compatible command used to submit
+# notification email. The local mail system decides whether mail is delivered
+# locally or relayed elsewhere.
+# Default: /usr/sbin/sendmail
+#SENDMAIL_PATH=/usr/sbin/sendmail
+
+# NOTIFICATION_FROM
+# Sender address used for notification email when notifications are enabled.
+# Default: issues@localhost
+#NOTIFICATION_FROM=issues@localhost
+
+# NOTIFICATION_SUBJECT_PREFIX
+# Prefix added to notification email subject lines.
+# Default: [Issues]
+#NOTIFICATION_SUBJECT_PREFIX=[Issues]
+
+# ISSUE_BASE_URL
+# Optional base URL used to include issue links in notification email bodies.
+# Leave empty to omit issue links from notification email.
+# Example: https://example.com/cgi-bin/issues.cgi
+# Default: empty
+#ISSUE_BASE_URL=
+
+# NOTIFICATION_TRIAGE_RECIPIENTS
+# Fallback notification recipients used for unassigned issues when a
+# notification-triggering action would otherwise have no non-actor recipient.
+# This can be a comma-separated mix of local recipient names and group
+# references. Items beginning with @ are treated as system group names and are
+# expanded through the normal system/Python group lookup, not by manually
+# reading /etc/group. For example:
+#   NOTIFICATION_TRIAGE_RECIPIENTS=root,helpdesk,@it_triage
+# On systems where SSSD/LDAP group enumeration is restricted, explicit
+# recipient names may be more reliable than @group expansion.
+# Default: root
+#NOTIFICATION_TRIAGE_RECIPIENTS=root
+
+# NOTIFICATION_BODY_MAX_CHARS
+# Maximum number of characters of long text to include in notification email
+# bodies. This cap applies to comment text and title/description update text.
+# Attachment notifications include metadata only and do not include file content.
+# Default: 8192
+#NOTIFICATION_BODY_MAX_CHARS=8192

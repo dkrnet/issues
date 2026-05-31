@@ -2,7 +2,7 @@
 
 `issues.cgi` is a single-file Python CGI issue tracker backed by SQLite. It provides a browser interface for creating, viewing, updating, assigning, commenting on, attaching files to, closing, canceling, and reopening issues.
 
-The application is intended for deployment behind Apache authentication. Apache authenticates the user and passes the username to the CGI script through `REMOTE_USER`.
+The application is intended for deployment behind Apache authentication. Apache authenticates the user and passes the username:q to the CGI script through `REMOTE_USER`.
 
 ## Intended use
 
