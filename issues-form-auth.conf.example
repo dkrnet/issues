@@ -1,0 +1,121 @@
+# /etc/httpd/conf.d/issues-form-auth.conf#
+# Example Apache 2.4 form-based authentication configuration for:
+#   /cgi-bin/issues.cgi
+#
+# This file assumes:
+# - issues.cgi renders the public login/support pages.
+# - Apache performs the actual authentication.
+# - issues.cgi expects REMOTE_USER for protected issue-tracking actions.
+#
+# Required Apache modules commonly include:
+#   auth_form_module
+#   session_module
+#   session_cookie_module
+#   request_module
+#   auth_basic_module
+#   authn_core_module
+#   authz_core_module
+#   authnz_pam_module
+#
+# Check loaded modules with:
+#   httpd -M | egrep 'auth_form|session|request|authnz_pam|auth_basic'
+
+# ---------------------------------------------------------------------------
+# Session support for mod_auth_form
+# ---------------------------------------------------------------------------
+#
+# mod_auth_form depends on Apache session support. Cookie-backed sessions are
+# usually the simplest option for a small CGI app.
+#
+Session On
+SessionCookieName issues_session path=/;httponly;secure;samesite=Strict
+SessionMaxAge 28800
+
+# ---------------------------------------------------------------------------
+# Login form handler
+# ---------------------------------------------------------------------------
+#
+# The login form rendered by issues.cgi should POST to this URL.
+# The form field names should match the issues.cgi constants:
+#
+#   AUTH_FORM_ACTION          = /login
+#   AUTH_FORM_USERNAME_FIELD  = httpd_username
+#   AUTH_FORM_PASSWORD_FIELD  = httpd_password
+#   AUTH_FORM_LOCATION_FIELD  = httpd_location
+#
+# Apache handles the submitted credentials here. The CGI script should not
+# validate passwords.
+#
+<Location "/login">
+    SetHandler form-login-handler
+
+    AuthType form
+    AuthName "Issues"
+
+    AuthFormProvider PAM
+    AuthPAMService httpd
+
+    AuthFormUsername httpd_username
+    AuthFormPassword httpd_password
+    AuthFormLocation httpd_location
+
+    AuthFormLoginSuccessLocation /cgi-bin/issues.cgi
+    AuthFormLoginRequiredLocation /cgi-bin/issues.cgi?action=login_failed
+
+    Require valid-user
+</Location>
+
+# ---------------------------------------------------------------------------
+# Public authentication support pages
+# ---------------------------------------------------------------------------
+#
+# The login, login_failed, logged_out, and auth_error pages must be reachable
+# before the user has authenticated. Because these are all handled by the same
+# CGI script as the protected app, this configuration allows unauthenticated
+# access only when the action query string names one of those public actions.
+#
+# If your Apache build does not allow Require expr checks against QUERY_STRING
+# in your environment, split the login pages into a separate CGI script or use
+# a small wrapper URL for the public actions.
+#
+<Location "/cgi-bin/issues.cgi">
+    <RequireAny>
+        Require expr "%{QUERY_STRING} =~ m#(^|&)action=(login|login_failed|logged_out|auth_error)(&|$)#"
+        Require valid-user
+    </RequireAny>
+
+    AuthType form
+    AuthName "Issues"
+
+    AuthFormProvider PAM
+    AuthPAMService httpd
+
+    AuthFormUsername httpd_username
+    AuthFormPassword httpd_password
+    AuthFormLocation httpd_location
+
+    AuthFormLoginRequiredLocation /cgi-bin/issues.cgi?action=login
+    AuthFormLoginSuccessLocation /cgi-bin/issues.cgi
+
+    # Optional: send app-level auth failures to the CGI-rendered page.
+    ErrorDocument 401 /cgi-bin/issues.cgi?action=login
+    ErrorDocument 403 /cgi-bin/issues.cgi?action=auth_error
+</Location>
+
+# ---------------------------------------------------------------------------
+# Optional logout URL
+# ---------------------------------------------------------------------------
+#
+# Apache form-auth logout usually depends on how sessions are stored and
+# expired. A simple logout endpoint can be configured by clearing the session
+# cookie and redirecting to the CGI logout page.
+#
+# If this does not work with your Apache/session module combination, remove this
+# block and handle logout by expiring the session through your chosen session
+# backend.
+#
+<Location "/issues-logout">
+    Session On
+    Header always set Set-Cookie "issues_session=deleted; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure; SameSite=Strict"
+    Redirect 303 /cgi-bin/issues.cgi?action=logged_out
+</Location>
