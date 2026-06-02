@@ -239,7 +239,7 @@ When a protected page is requested before authentication, the application redire
 
 When no banner image is configured, the application renders a 35-pixel CSS header with half-page-margin top and side spacing, `Issues` over a `#E6E9EF`-to-transparent gradient, and `#BFC5D0` header text. A non-empty internal `ISSUES_VERSION` value adds a small centered version footer to authenticated pages only; unauthenticated public pages do not display the version number.
 
-The source default application version is `1.0.0`. Run `./build.sh` from the repository to stamp `issues.cgi` with the current local Git `HEAD` commit ID using Semantic Versioning build metadata, such as `1.0.0+GITID`.
+The source default application version is `1.0.0`. Run `./build.sh` from the repository to stamp a development-branch build as `1.0.0-dev.N+GITID`, where `N` is the number of commits after the matching release tag and `GITID` is an abbreviated current local Git `HEAD` commit ID. Run `./build.sh --release` to stamp a release build as `1.0.0+GITID`.
 
 ## Issue list
 

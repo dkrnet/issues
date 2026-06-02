@@ -1379,10 +1379,18 @@ The tests shall inspect generated HTML and verify:
 The tests shall verify:
 - The repository build script obtains the current local `HEAD` commit ID from Git.
 - The repository build script updates the `ISSUES_VERSION` assignment in `issues.cgi`.
-- The updated `ISSUES_VERSION` value uses the form `x.y.z+GITID`.
+- In default development-build mode, the updated `ISSUES_VERSION` value uses the form `x.y.z-dev.N+GITID`.
+- Development-build mode uses the number of commits after the matching release tag as `N`.
+- Development-build mode uses `0` as `N` when no matching release tag exists.
+- In explicit release-build mode, the updated `ISSUES_VERSION` value uses the form `x.y.z+GITID`.
+- The `GITID` value in the updated `ISSUES_VERSION` is an abbreviated commit ID suitable for display in the application footer.
 - The repository build script preserves the existing `x.y.z` base version.
 - The repository build script replaces existing build metadata rather than appending a second metadata suffix.
 - The repository build script fails if the target `issues.cgi` file does not contain exactly one `ISSUES_VERSION` assignment.
+
+# Repository Workflow Tests
+
+The tests shall not commit local repository changes directly on `main`.
 
 ## Not Required Initially
 

@@ -186,9 +186,20 @@ NOTIFICATION_BODY_MAX_CHARS - `8192`
 - The build script updates the `ISSUES_VERSION` assignment in `issues.cgi`.
 - The build script preserves the existing base version number from `ISSUES_VERSION`.
 - The base version number must use traditional semantic version form `x.y.z`.
-- The build script appends the Git commit ID as Semantic Versioning build metadata using the form `x.y.z+GITID`.
-- If `ISSUES_VERSION` already contains build metadata, the build script replaces the existing build metadata with the current local `HEAD` commit ID.
+- The build script defaults to development-build mode.
+- In development-build mode, the build script updates `ISSUES_VERSION` using the form `x.y.z-dev.N+GITID`.
+- In development-build mode, `N` is the number of commits after the matching `x.y.z` or `vx.y.z` release tag.
+- In development-build mode, `N` is `0` when no matching release tag exists.
+- In release-build mode, the build script updates `ISSUES_VERSION` using the form `x.y.z+GITID`.
+- Release-build mode is selected with the `--release` option.
+- The `GITID` value is an abbreviated Git commit ID short enough for display in the application footer while still identifying the local `HEAD` commit.
+- If `ISSUES_VERSION` already contains a development prerelease suffix or build metadata, the build script replaces it with the selected mode's current version suffix.
 - The build script fails rather than updating the file when `issues.cgi` does not contain exactly one `ISSUES_VERSION` assignment.
+
+# Repository Workflow Requirements
+
+- Changes committed to the local repository must be committed on a development branch.
+- Changes committed to the local repository must not be committed directly on `main`.
 
 # Access and Authentication Requirements
 
