@@ -36,6 +36,7 @@
 
 DB_FILE - path to the SQLite database file used by the application  
 DEFAULT_CLOSING_COMMENT - default text used when a closing or cancel comment is empty  
+ISSUES_VERSION - application version number displayed on authenticated pages when non-empty  
 MAX_UPLOAD_BYTES - maximum allowed upload size for attachment submissions  
 ASSIGNEE_GROUP - group name used to build the assignable user list  
 ASSIGNEE_EXCLUDE - comma-separated list of usernames excluded from the assignable user list  
@@ -55,6 +56,9 @@ AUTH_FORM_ACTION - URL to which the login form posts for external form-based aut
 AUTH_FORM_USERNAME_FIELD - username field name expected by the external form-authentication endpoint  
 AUTH_FORM_PASSWORD_FIELD - password field name expected by the external form-authentication endpoint  
 AUTH_FORM_LOCATION_FIELD - destination or return-location field name expected by the external form-authentication endpoint  
+AUTH_FORM_LOCATION_ALIASES - alternate login URL parameter names accepted as destination or return-location values  
+AUTH_FORM_LOCATION_PATH_FIELD - login URL parameter name accepted as the path portion of a destination or return-location value  
+AUTH_FORM_LOCATION_QUERY_FIELD - login URL parameter name accepted as the query-string portion of a destination or return-location value  
 AUTH_FORM_DEFAULT_LOCATION - default post-login destination used by the login form  
 LOGOUT_URL - URL used by the authenticated page logout link  
 SITE_CONFIG_FILE - path to the optional site configuration file  
@@ -69,7 +73,8 @@ NOTIFICATION_BODY_MAX_CHARS - maximum number of characters from comment and desc
 # Variable Initial Values
 
 DB_FILE - `/var/lib/issues/issues.db`  
-DEFAULT_CLOSING_COMMENT - `no closing comment provided`  
+DEFAULT_CLOSING_COMMENT - `no comment provided`  
+ISSUES_VERSION - `1.0.0`  
 MAX_UPLOAD_BYTES - `10485760`  
 ASSIGNEE_GROUP - `users`  
 ASSIGNEE_EXCLUDE - empty string  
@@ -89,6 +94,9 @@ AUTH_FORM_ACTION - `/login`
 AUTH_FORM_USERNAME_FIELD - `httpd_username`
 AUTH_FORM_PASSWORD_FIELD - `httpd_password`
 AUTH_FORM_LOCATION_FIELD - `httpd_location`
+AUTH_FORM_LOCATION_ALIASES - `("next", "return_to", "return", "redirect_to", "redirect", "url")`
+AUTH_FORM_LOCATION_PATH_FIELD - `next_path`
+AUTH_FORM_LOCATION_QUERY_FIELD - `next_query`
 AUTH_FORM_DEFAULT_LOCATION - `/cgi-bin/issues.cgi`
 LOGOUT_URL - `/issues-logout`
 SITE_CONFIG_FILE - `/etc/issues.conf`
@@ -114,7 +122,7 @@ NOTIFICATION_BODY_MAX_CHARS - `8192`
 - The configuration file is plain text and is not executed as code.
 - Only documented site configuration keys are read from the file.
 - The supported site configuration keys are `DB_FILE`, `DEFAULT_CLOSING_COMMENT`, `MAX_UPLOAD_BYTES`, `ASSIGNEE_GROUP`, `ASSIGNEE_EXCLUDE`, `PER_USER_CONFIG_DIR`, `MAX_FILENAME_LEN`, `ADMINS_GROUP`, `ADMINS_GROUP_EXCLUDE`, `BANNER_FILE`, `BANNER_DIMENSIONS`, `EMAIL_NOTIFICATIONS_ENABLED`, `SENDMAIL_PATH`, `NOTIFICATION_FROM`, `NOTIFICATION_SUBJECT_PREFIX`, `ISSUE_BASE_URL`, `NOTIFICATION_TRIAGE_RECIPIENTS`, and `NOTIFICATION_BODY_MAX_CHARS`.
-- Form-authentication variables, logout URL, issue-list page size, and auto-refresh options are not read from `/etc/issues.conf`.
+- Form-authentication variables, logout URL, issue-list page size, application version number, and auto-refresh options are not read from `/etc/issues.conf`.
 - `EMAIL_NOTIFICATIONS_ENABLED` values from `/etc/issues.conf` must be parsed as a boolean value using documented true/false forms.
 - `SENDMAIL_PATH` values from `/etc/issues.conf` must be non-empty absolute paths.
 - `NOTIFICATION_FROM` and `NOTIFICATION_SUBJECT_PREFIX` values from `/etc/issues.conf` must be non-empty strings when email notifications are enabled.
@@ -131,16 +139,31 @@ NOTIFICATION_BODY_MAX_CHARS - `8192`
 - When rendered, the banner image uses `BANNER_FILE` as its source.
 - When `BANNER_DIMENSIONS` is not empty and contains valid dimensions, the rendered banner image uses `BANNER_DIMENSIONS`.
 - When `BANNER_FILE` is empty, no banner image is rendered.
+- When `BANNER_FILE` is empty, a CSS-based fallback header is rendered.
+- The CSS-based fallback header is 35 pixels tall.
+- The CSS-based fallback header has a modest buffer above it and to its left and right.
+- The fallback header buffer above, left, and right is half the normal page body margin.
+- The CSS-based fallback header uses a horizontal gradient from `#E6E9EF` on the left to transparent on the right.
+- The CSS-based fallback header displays the text `Issues` above the gradient layer.
+- The fallback header text color is `#BFC5D0`.
+- The fallback header text is vertically centered and positioned near the left edge with reasonable left padding.
 - Every HTML page includes a favicon link in the document head.
 - The favicon link points to the CGI favicon action and does not require an external favicon file.
 - Markdown help links open in a new browser window or tab.
 - Authenticated application pages display the current authenticated username in the page header.
+- Authenticated application page headers display the page title and current-user/logout display on the same row.
+- The current-user/logout display is right-justified on the page-title row.
 - When an authenticated username is displayed, a logout link appears adjacent to it.
 - The logout link is visually distinct from the username and must not appear to be part of the username.
 - The logout link text is `Logout`.
-- The username is displayed as plain bold text and the logout link is displayed as an underlined link in parentheses, for example: `Current user: redmondd (Logout)`.
+- The current-user label is `Welcome`.
+- The current-user label includes a comma after `Welcome`, for example: `Welcome, redmondd (Logout)`.
+- The username is displayed as plain bold text and the logout link is displayed as an underlined link in parentheses, for example: `Welcome, redmondd (Logout)`.
 - The logout link points to `LOGOUT_URL`.
 - The logout link is not displayed on unauthenticated public pages such as the login page, login failed page, logged out page, or authentication error page.
+- When `ISSUES_VERSION` is not empty, authenticated pages display a footer containing `Issues` followed by the version number.
+- The version footer text is small, horizontally centered, vertically separated from the preceding content, and styled in a lighter unobtrusive color.
+- The application version number is not displayed on unauthenticated public pages, including login, login failed, logged out, and authentication error pages.
 
 # Data Sources Controlled by Constants or Globals
 
@@ -154,6 +177,18 @@ NOTIFICATION_BODY_MAX_CHARS - `8192`
 - System administrator exclusions: `ADMINS_GROUP_EXCLUDE`
 - Banner image file: `BANNER_FILE`
 - Favicon image data: embedded in `issues.cgi`
+- Version footer value: `ISSUES_VERSION`
+
+# Build Script Requirements
+
+- The repository includes a shell build script at `build.sh`.
+- The build script obtains the current local repository `HEAD` commit ID from Git.
+- The build script updates the `ISSUES_VERSION` assignment in `issues.cgi`.
+- The build script preserves the existing base version number from `ISSUES_VERSION`.
+- The base version number must use traditional semantic version form `x.y.z`.
+- The build script appends the Git commit ID as Semantic Versioning build metadata using the form `x.y.z+GITID`.
+- If `ISSUES_VERSION` already contains build metadata, the build script replaces the existing build metadata with the current local `HEAD` commit ID.
+- The build script fails rather than updating the file when `issues.cgi` does not contain exactly one `ISSUES_VERSION` assignment.
 
 # Access and Authentication Requirements
 
@@ -167,14 +202,24 @@ NOTIFICATION_BODY_MAX_CHARS - `8192`
 - The `favicon` action is public and does not require `REMOTE_USER`.
 - When a request omits the `action` parameter and `REMOTE_USER` is missing or empty, the application uses `login` as the default action.
 - When a request omits the `action` parameter and `REMOTE_USER` is present, the application uses `list` as the default action.
+- When a protected action is requested without `REMOTE_USER`, the application redirects to the public login action and includes the originally requested safe application URL in the login destination field.
 - The `login` action renders a login form that posts to `AUTH_FORM_ACTION`.
 - The login form uses the field names defined by `AUTH_FORM_USERNAME_FIELD`, `AUTH_FORM_PASSWORD_FIELD`, and `AUTH_FORM_LOCATION_FIELD`.
 - The login form includes a destination field using `AUTH_FORM_DEFAULT_LOCATION` unless a safe destination is supplied. The default destination is `/cgi-bin/issues.cgi`.
+- The login action accepts an explicit safe destination supplied in the login request using `AUTH_FORM_LOCATION_FIELD` or any name in `AUTH_FORM_LOCATION_ALIASES`.
+- The login action accepts an explicit safe destination supplied in split form using `AUTH_FORM_LOCATION_PATH_FIELD` and optional raw `AUTH_FORM_LOCATION_QUERY_FIELD`.
+- Explicit login request destination parameters are copied into the login form field named by `AUTH_FORM_LOCATION_FIELD` so the external form-authentication layer can redirect there after successful authentication.
+- Split login request destination parameters are reconstructed into one safe destination before being copied into the login form field named by `AUTH_FORM_LOCATION_FIELD`.
+- The login page captures the originally requested safe application URL and uses it as the authentication destination when an explicit safe destination field is not supplied.
+- The login page supports captured original application URLs supplied by CGI/web-server internal redirect environment values such as `REDIRECT_URL` and `REDIRECT_QUERY_STRING`.
+- The login page may use a same-origin `HTTP_REFERER` value as the captured original application URL when direct request and internal redirect environment values do not identify the original protected URL.
+- External, cross-origin, or public-authentication-page referer values must not be used as authentication destinations.
+- Captured authentication destinations must reject external URLs, scheme-relative URLs, URLs with a scheme, control characters, and other unsafe redirect targets.
 - The login form and authentication support pages must not state or imply what authentication mechanism, server module, or backend service is being used.
 - The login form and authentication support pages must not mention Apache, PAM, web server authentication, server-side authentication, or similar implementation details in user-facing text.
 - The application must not store, log, echo, or otherwise process submitted passwords.
 - All normal issue-tracking actions continue to require a valid `REMOTE_USER`.
-- If `REMOTE_USER` is missing, empty, or invalid for a protected action, the application returns an authentication or authorization error with an appropriate HTTP status code.
+- If `REMOTE_USER` is invalid for a protected action, the application returns an authentication or authorization error with an appropriate HTTP status code.
 
 # Error Response Requirements
 
@@ -565,6 +610,11 @@ To rebuild the application from scratch, the database must provide:
 - The login form includes a password input named by `AUTH_FORM_PASSWORD_FIELD`.
 - The login form includes a destination or return-location input named by `AUTH_FORM_LOCATION_FIELD`.
 - The destination value is safely escaped before rendering.
+- The destination value uses a supplied safe destination when present.
+- The supplied safe destination may come from a login request parameter named by `AUTH_FORM_LOCATION_FIELD` or by one of `AUTH_FORM_LOCATION_ALIASES`.
+- The supplied safe destination may come from split login request parameters named by `AUTH_FORM_LOCATION_PATH_FIELD` and `AUTH_FORM_LOCATION_QUERY_FIELD`.
+- If no destination field is supplied, the destination value uses the current safe requested application URL.
+- Unsafe destinations, public authentication support page destinations, and missing destinations fall back to `AUTH_FORM_DEFAULT_LOCATION`.
 - The application does not validate the submitted password.
 - The application does not echo submitted password values.
 
@@ -1078,6 +1128,8 @@ To rebuild the application from scratch, the database must provide:
 - The issue becomes closed and completed when the action succeeds.
 - Closing an issue sets the issue state to `complete`.
 - Closing an issue also sets percent complete to `100` because the issue state becomes `complete`.
+- The close action records an issue-history entry that references the stored closing comment by `comment_id`.
+- The close issue-history summary identifies that the issue was closed with a comment without duplicating the full comment text in `issue_history`.
 
 ---
 
@@ -1151,6 +1203,8 @@ To rebuild the application from scratch, the database must provide:
 **Conditional behavior:**
 - The comment input accepts either of two field names.
 - The issue becomes canceled and completed when the action succeeds.
+- The cancel action records an issue-history entry that references the stored cancel comment by `comment_id`.
+- The cancel issue-history summary identifies that the issue was canceled with a comment without duplicating the full comment text in `issue_history`.
 
 ---
 
@@ -1304,3 +1358,10 @@ To rebuild the application from scratch, the database must provide:
 
 ## Redirect Behavior
 - Create, assign, comment, update, priority update, due date update, percent update, state update, close, reopen, and cancel actions redirect back to the issue view or list after success.
+
+## Form Focus Behavior
+- Forms that contain text-entry controls automatically place input focus in the top-left-most eligible text-entry control when the page loads.
+- Eligible text-entry controls include text inputs, password inputs, search inputs, email inputs, URL inputs, telephone inputs, number inputs, date inputs, and textareas.
+- Hidden inputs, file inputs, submit buttons, disabled controls, and read-only controls are not eligible for automatic focus.
+- The automatic form-focus behavior applies to form pages such as login, create issue, update issue, comment, close issue, and cancel issue pages.
+- The automatic form-focus behavior does not apply to issue list pages or issue view pages.

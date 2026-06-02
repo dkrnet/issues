@@ -113,3 +113,39 @@ def test_configured_banner_is_rendered_before_page_heading(app, patched_environm
     monkeypatch.setattr(app, "BANNER_DIMENSIONS", "640x80", raising=False)
     html = _html(parse_headers, invoke_action(app, "list", user="alice"))
     assert_banner_uses_config(html, "/images/custom_banner.png", "640x80")
+
+
+def test_version_footer_renders_only_on_authenticated_pages(app, patched_environment, monkeypatch, invoke_action, make_form, parse_headers):
+    monkeypatch.setattr(app, "ISSUES_VERSION", "1.2.3", raising=False)
+
+    authenticated_html = _html(parse_headers, invoke_action(app, "list", make_form(action="list"), "alice"))
+    assert '<footer class="app-footer">Issues 1.2.3</footer>' in authenticated_html
+
+    for action in ("login", "login_failed", "logged_out", "auth_error"):
+        public_html = _html(parse_headers, invoke_action(app, action, make_form(action=action), None))
+        assert "1.2.3" not in public_html
+        assert 'class="app-footer"' not in public_html
+
+
+def test_text_entry_forms_autofocus_top_left_field_but_list_and_view_do_not(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers):
+    issue_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
+    checks = [
+        ("login", make_form(action="login"), None, 'id="auth_username" name="httpd_username" autocomplete="username" autofocus'),
+        ("create", make_form(action="create"), "alice", 'name="title" size="80" required autofocus'),
+        ("update", make_form(action="update", id=str(issue_id)), "alice", 'name="title" size="80" value='),
+        ("comment", make_form(action="comment", id=str(issue_id)), "alice", 'name="comment_text" required autofocus'),
+        ("close", make_form(action="close", id=str(issue_id)), "alice", 'name="closing_comment" autofocus'),
+        ("cancel", make_form(action="cancel", id=str(issue_id)), "alice", 'name="cancel_comment" autofocus'),
+    ]
+    for action, form, user, fragment in checks:
+        html = _html(parse_headers, invoke_action(app, action, form, user))
+        assert fragment in html
+        assert "autofocus" in html
+
+    update_html = _html(parse_headers, invoke_action(app, "update", make_form(action="update", id=str(issue_id)), "alice"))
+    assert 'required autofocus' in update_html
+
+    list_html = _html(parse_headers, invoke_action(app, "list", make_form(action="list"), "alice"))
+    view_html = _html(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
+    assert "autofocus" not in list_html.lower()
+    assert "autofocus" not in view_html.lower()

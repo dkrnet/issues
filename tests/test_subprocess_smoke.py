@@ -150,8 +150,11 @@ def test_subprocess_cgi_smoke_login_action_without_remote_user(issues_cgi_path, 
     assert "Anonymous or invalid user" not in result.stdout
 
 
-def test_subprocess_cgi_smoke_protected_action_without_remote_user_is_rejected(issues_cgi_path, tmp_path, temp_db, temp_config_dir):
+def test_subprocess_cgi_smoke_protected_action_without_remote_user_redirects_to_login(issues_cgi_path, tmp_path, temp_db, temp_config_dir):
     script = _make_subprocess_app(issues_cgi_path, tmp_path, temp_db, temp_config_dir)
     result = _run_cgi(script, "action=list", remote_user="")
     assert result.returncode == 0, result.stderr
-    assert "Status: 403 Forbidden" in _headers(result.stdout)
+    headers = _headers(result.stdout)
+    assert "Status: 303 See Other" in headers
+    assert "Location: issues.cgi?action=login" in headers
+    assert "httpd_location=%2Fissues.cgi%3Faction%3Dlist" in headers

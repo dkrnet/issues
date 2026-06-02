@@ -139,14 +139,15 @@ import sys
 import traceback
 from pathlib import Path
 from typing import Any, Iterable, Optional
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 # ---------------------------------------------------------------------------
 # Global configuration
 # ---------------------------------------------------------------------------
 
 DB_FILE = "/var/lib/issues/issues.db"
-DEFAULT_CLOSING_COMMENT = "no closing comment provided"
+DEFAULT_CLOSING_COMMENT = "no comment provided"
+ISSUES_VERSION = "1.0.0"
 MAX_UPLOAD_BYTES = 10485760
 ASSIGNEE_GROUP = "users"
 ASSIGNEE_EXCLUDE = ""
@@ -176,6 +177,9 @@ AUTH_FORM_ACTION = "/login"
 AUTH_FORM_USERNAME_FIELD = "httpd_username"
 AUTH_FORM_PASSWORD_FIELD = "httpd_password"
 AUTH_FORM_LOCATION_FIELD = "httpd_location"
+AUTH_FORM_LOCATION_ALIASES = ("next", "return_to", "return", "redirect_to", "redirect", "url")
+AUTH_FORM_LOCATION_PATH_FIELD = "next_path"
+AUTH_FORM_LOCATION_QUERY_FIELD = "next_query"
 # REGRESSION GUARD: This default destination must match the deployed CGI URL.
 # If it is changed to /issues.cgi or a relative issues.cgi path, successful
 # form authentication redirects users away from /cgi-bin/issues.cgi.
@@ -381,15 +385,22 @@ def render_page(title: str, body: str, current_user: Optional[str] = None) -> st
             dimension_attrs = f' width="{h(width)}" height="{h(height)}"'
         banner_html = f'<img class="banner" src="{h(BANNER_FILE)}"{dimension_attrs} alt="Banner">'
     else:
-        banner_html = ""
+        banner_html = '<div class="css-header"><div class="css-header-title">Issues</div></div>'
     user_value = (current_user or "").strip()
     if user_value:
         user_block = (
-            f'<div class="current-user">Current user: <strong>{h(user_value)}</strong> '
+            f'<div class="current-user">Welcome, <strong>{h(user_value)}</strong> '
             f'<span class="logout-wrapper">(<a class="logout-link" href="{h(LOGOUT_URL)}">Logout</a>)</span></div>'
         )
     else:
         user_block = ""
+    version_value = ISSUES_VERSION.strip()
+    # REQUIREMENTS: Version text is intentionally omitted from unauthenticated
+    # public pages even when ISSUES_VERSION is configured.
+    footer_html = (
+        f'<footer class="app-footer">Issues {h(version_value)}</footer>'
+        if version_value and user_value else ""
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -399,12 +410,15 @@ def render_page(title: str, body: str, current_user: Optional[str] = None) -> st
 <style>
 body {{ font-family: Arial, sans-serif; margin: 1.5rem; line-height: 1.4; }}
 .banner {{ display: block; margin-bottom: 1rem; }}
-.header {{ margin-bottom: 1rem; }}
-.header h1 {{ margin: 0 0 0.25rem 0; }}
-.current-user {{ color: #555; }}
+.css-header {{ position: relative; height: 35px; margin: -0.75rem -0.75rem 1rem -0.75rem; background: linear-gradient(90deg, #E6E9EF 0%, rgba(230, 233, 239, 0) 100%); }}
+.css-header-title {{ position: relative; z-index: 1; height: 35px; display: flex; align-items: center; padding-left: 1rem; font-size: 1.1rem; font-weight: bold; color: #BFC5D0; }}
+.header {{ display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }}
+.header h1 {{ margin: 0; }}
+.current-user {{ color: #555; text-align: right; white-space: nowrap; }}
 .current-user strong {{ font-weight: bold; color: #333; }}
 .logout-wrapper {{ margin-left: 0.4em; }}
 .logout-link {{ text-decoration: underline; }}
+.app-footer {{ margin-top: 1.5rem; text-align: center; color: #777; font-size: 0.85rem; }}
 table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
 th, td {{ border: 1px solid #ccc; padding: 0.4rem 0.55rem; vertical-align: top; }}
 th {{ background: #eee; text-align: left; }}
@@ -530,6 +544,7 @@ button, input[type=submit] {{ cursor: pointer; }}
 {banner_html}
 <div class="header"><h1>{h(title)}</h1>{user_block}</div>
 {body}
+{footer_html}
 </body>
 </html>"""
 
@@ -665,6 +680,15 @@ def action_url(action: str, **params: Any) -> str:
     data = {"action": action}
     data.update({k: v for k, v in params.items() if v is not None})
     return "issues.cgi?" + urlencode(data)
+
+
+def current_request_destination() -> str:
+    request_uri = os.environ.get("REQUEST_URI", "").strip()
+    if request_uri:
+        return safe_auth_destination(request_uri)
+    script_name = os.environ.get("SCRIPT_NAME", "").strip() or AUTH_FORM_DEFAULT_LOCATION
+    query_string = os.environ.get("QUERY_STRING", "").strip()
+    return safe_auth_destination(script_name + (f"?{query_string}" if query_string else ""))
 
 
 # ---------------------------------------------------------------------------
@@ -1687,7 +1711,7 @@ def action_create(form: cgi.FieldStorage, username: str) -> None:
     body = f"""
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="create_submit">
-<p><label>Title<br><input type="text" name="title" size="80" required></label></p>
+<p><label>Title<br><input type="text" name="title" size="80" required autofocus></label></p>
 <p><label>Description<br><textarea name="description" required></textarea></label></p>
 {render_markdown_help_link()}
 <p><label>Priority <select name="priority">{option_tags([p for p in PRIORITIES if p != 'any'], 'normal')}</select></label></p>
@@ -1887,7 +1911,7 @@ def action_comment(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="comment_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
-<p><label>Comment<br><textarea name="comment_text" required></textarea></label></p>
+<p><label>Comment<br><textarea name="comment_text" required autofocus></textarea></label></p>
 {render_markdown_help_link()}
 <p><input type="submit" value="Add comment"></p>
 </form>
@@ -1943,7 +1967,7 @@ def action_update(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="update_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
-<p><label>Title<br><input type="text" name="title" size="80" value="{h(issue['title'])}" required></label></p>
+<p><label>Title<br><input type="text" name="title" size="80" value="{h(issue['title'])}" required autofocus></label></p>
 <p><label>Description<br><textarea name="description">{h(issue['description'])}</textarea></label></p>
 {render_markdown_help_link()}
 <p><input type="submit" value="Update issue"></p>
@@ -2111,7 +2135,7 @@ def action_close(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="close_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
-<p><label>Closing comment<br><textarea name="closing_comment"></textarea></label></p>
+<p><label>Closing comment<br><textarea name="closing_comment" autofocus></textarea></label></p>
 {render_markdown_help_link()}
 <p><input type="submit" value="Close issue"></p>
 </form>
@@ -2135,8 +2159,12 @@ def action_close_submit(form: cgi.FieldStorage, username: str) -> None:
         now = now_utc_sql()
         # REQUIREMENTS: Closing an issue makes the workflow state complete, which also makes percent complete 100.
         con.execute("UPDATE issues SET status = 'closed', state = 'complete', pct_complete = 100, completed_at = ?, updated_at = ? WHERE id = ?", (now, now, issue_id))
-        con.execute("INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)", (issue_id, username, comment, now))
-        record_issue_history(con, issue_id, username, "closed", "Closed issue", now)
+        cur = con.execute(
+            "INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)",
+            (issue_id, username, comment, now),
+        )
+        comment_id = int(cur.lastrowid)
+        record_issue_history(con, issue_id, username, "closed", "Closed issue with comment", now, comment_id=comment_id)
         recipients = unique_notification_recipients([issue["creator_username"], issue["assigned_username"]], exclude=username)
         con.commit()
     notify_issue_event(issue_id, username, recipients, "Issue closed")
@@ -2159,7 +2187,7 @@ def action_cancel(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="cancel_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
-<p><label>Cancel comment<br><textarea name="cancel_comment"></textarea></label></p>
+<p><label>Cancel comment<br><textarea name="cancel_comment" autofocus></textarea></label></p>
 {render_markdown_help_link()}
 <p><input type="submit" value="Cancel issue"></p>
 </form>
@@ -2181,8 +2209,12 @@ def action_cancel_submit(form: cgi.FieldStorage, username: str) -> None:
             raise AppError("Only the issue owner can cancel this issue", "403 Forbidden")
         now = now_utc_sql()
         con.execute("UPDATE issues SET status = 'canceled', completed_at = ?, updated_at = ? WHERE id = ?", (now, now, issue_id))
-        con.execute("INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)", (issue_id, username, comment, now))
-        record_issue_history(con, issue_id, username, "canceled", "Canceled issue", now)
+        cur = con.execute(
+            "INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)",
+            (issue_id, username, comment, now),
+        )
+        comment_id = int(cur.lastrowid)
+        record_issue_history(con, issue_id, username, "canceled", "Canceled issue with comment", now, comment_id=comment_id)
         con.commit()
     redirect(action_url("view", id=issue_id), "302 Found")
 
@@ -2406,13 +2438,113 @@ def safe_auth_destination(value: str) -> str:
     # field for Apache form-auth handling. Keep it relative and single-line so
     # it cannot become an open redirect target or inject attributes.
     lowered = raw.lower()
-    if "\r" in raw or "\n" in raw or lowered.startswith(("http:", "https:", "//")):
+    parsed = urlsplit(raw)
+    if "\r" in raw or "\n" in raw or parsed.scheme or lowered.startswith("//"):
         return AUTH_FORM_DEFAULT_LOCATION
     return raw
 
 
+def is_public_auth_destination(candidate: str) -> bool:
+    query = parse_qs(urlsplit(candidate).query, keep_blank_values=True)
+    action_values = [value.strip() for value in query.get("action", [])]
+    return any(value in PUBLIC_ACTIONS for value in action_values)
+
+
+def login_destination_or_default(value: str) -> str:
+    destination = safe_auth_destination(value)
+    if is_public_auth_destination(destination):
+        return AUTH_FORM_DEFAULT_LOCATION
+    return destination
+
+
+def field_first_present_value(form: cgi.FieldStorage, names: Iterable[str]) -> str:
+    for name in names:
+        if name in form:
+            return field_value(form, name, "")
+    return ""
+
+
+def raw_query_parameter_remainder(name: str) -> str:
+    raw_query = os.environ.get("QUERY_STRING", "")
+    marker = f"{name}="
+    for part in raw_query.split("&"):
+        if part.startswith(marker):
+            index = raw_query.find(marker)
+            if index >= 0:
+                return raw_query[index + len(marker):]
+    return ""
+
+
+def explicit_split_login_destination(form: cgi.FieldStorage) -> str:
+    path = field_value(form, AUTH_FORM_LOCATION_PATH_FIELD, "").strip()
+    if not path:
+        return ""
+    query = raw_query_parameter_remainder(AUTH_FORM_LOCATION_QUERY_FIELD)
+    if not query and AUTH_FORM_LOCATION_QUERY_FIELD in form:
+        query = field_value(form, AUTH_FORM_LOCATION_QUERY_FIELD, "").strip()
+    destination = path + (f"?{query}" if query else "")
+    return login_destination_or_default(destination)
+
+
+def explicit_login_destination(form: cgi.FieldStorage) -> str:
+    split_destination = explicit_split_login_destination(form)
+    if split_destination:
+        return split_destination
+    raw_destination = field_first_present_value(form, (AUTH_FORM_LOCATION_FIELD,) + AUTH_FORM_LOCATION_ALIASES)
+    return login_destination_or_default(raw_destination) if raw_destination else ""
+
+
+def same_origin_referer_destination() -> str:
+    referer = os.environ.get("HTTP_REFERER", "").strip()
+    if not referer:
+        return AUTH_FORM_DEFAULT_LOCATION
+    parsed = urlsplit(referer)
+    if parsed.scheme:
+        request_host = (os.environ.get("HTTP_HOST") or os.environ.get("SERVER_NAME") or "").strip().lower()
+        referer_host = parsed.netloc.lower()
+        if not request_host or referer_host != request_host:
+            return AUTH_FORM_DEFAULT_LOCATION
+        candidate = parsed.path or AUTH_FORM_DEFAULT_LOCATION
+        if parsed.query:
+            candidate += "?" + parsed.query
+    else:
+        candidate = referer
+    candidate = safe_auth_destination(candidate)
+    if candidate != AUTH_FORM_DEFAULT_LOCATION and not is_public_auth_destination(candidate):
+        return candidate
+    return AUTH_FORM_DEFAULT_LOCATION
+
+
+def request_auth_destination() -> str:
+    redirect_url = os.environ.get("REDIRECT_URL", "").strip()
+    if redirect_url:
+        redirect_query = os.environ.get("REDIRECT_QUERY_STRING", "").strip()
+        candidate = redirect_url + (f"?{redirect_query}" if redirect_query and "?" not in redirect_url else "")
+        candidate = safe_auth_destination(candidate)
+        if candidate != AUTH_FORM_DEFAULT_LOCATION and not is_public_auth_destination(candidate):
+            return candidate
+
+    request_uri = os.environ.get("REQUEST_URI", "").strip()
+    if request_uri:
+        candidate = safe_auth_destination(request_uri)
+        if candidate != AUTH_FORM_DEFAULT_LOCATION and not is_public_auth_destination(candidate):
+            return candidate
+
+    referer_candidate = same_origin_referer_destination()
+    if referer_candidate != AUTH_FORM_DEFAULT_LOCATION:
+        return referer_candidate
+
+    script_name = os.environ.get("SCRIPT_NAME", "").strip() or AUTH_FORM_DEFAULT_LOCATION
+    query_string = os.environ.get("QUERY_STRING", "").strip()
+    candidate = script_name + (f"?{query_string}" if query_string else "")
+    candidate = safe_auth_destination(candidate)
+    if is_public_auth_destination(candidate):
+        return AUTH_FORM_DEFAULT_LOCATION
+    return candidate
+
+
 def action_login(form: cgi.FieldStorage, username: Optional[str] = None) -> None:
-    destination = safe_auth_destination(field_value(form, AUTH_FORM_LOCATION_FIELD, AUTH_FORM_DEFAULT_LOCATION))
+    destination = explicit_login_destination(form) or login_destination_or_default(request_auth_destination())
     body = f"""
 <p>Please sign in.</p>
 <div class="login-panel">
@@ -2530,7 +2662,17 @@ def dispatch() -> None:
     if not callable(handler):
         raise AppError("Unknown action", "404 Not Found")
 
-    username = None if action in PUBLIC_ACTIONS else get_current_user()
+    if action in PUBLIC_ACTIONS:
+        username = None
+    else:
+        raw_username = os.environ.get("REMOTE_USER", "").strip()
+        if not raw_username:
+            # BUGFIX: When the app itself receives an unauthenticated request
+            # for a protected page, send the user through the public login page
+            # with the requested URL embedded. Otherwise form authentication
+            # falls back to its generic success URL after login.
+            redirect(action_url("login", **{AUTH_FORM_LOCATION_FIELD: current_request_destination()}))
+        username = get_current_user()
     handler(form, username)
 
 

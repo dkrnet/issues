@@ -301,6 +301,7 @@ The tests shall monkeypatch application globals to deterministic values.
 - `SITE_CONFIG_FILE` - may use the application default unless a site-configuration test overrides it
 - `BANNER_FILE` - empty string unless a configured-banner test overrides it
 - `BANNER_DIMENSIONS` - empty string unless a configured-banner test overrides it
+- `ISSUES_VERSION` - `1.0.0` unless a version-footer test overrides it
 
 # Site Configuration File Tests
 
@@ -505,11 +506,11 @@ The tests shall verify:
 - The login failed page renders as a complete HTML document.
 - The logged out page renders as a complete HTML document.
 - The authentication error page renders as a complete HTML document.
-- Missing `REMOTE_USER` is rejected for protected actions.
-- Empty `REMOTE_USER` is rejected for protected actions.
+- Missing `REMOTE_USER` redirects protected actions to the public login action with a safe captured destination.
+- Empty `REMOTE_USER` redirects protected actions to the public login action with a safe captured destination.
 - Unknown `REMOTE_USER` is rejected for protected actions.
 - Valid `REMOTE_USER` is accepted for protected actions.
-- Anonymous access cannot reach protected issue-tracking pages or actions.
+- Anonymous access cannot directly reach protected issue-tracking pages or actions.
 
 # Routing Tests
 
@@ -542,6 +543,14 @@ The tests shall verify:
 - The destination input name matches `AUTH_FORM_LOCATION_FIELD`.
 - The destination input value is safely escaped.
 - The default destination input value is `/cgi-bin/issues.cgi`.
+- A safe destination supplied in the login request through `AUTH_FORM_LOCATION_FIELD` or an accepted alias such as `next` or `return_to` is copied into the login form destination field.
+- A safe destination supplied in the login request through split path and raw query-string parameters is reconstructed and copied into the login form destination field, including query-string values that are not URL encoded.
+- Unauthenticated requests for protected application actions redirect to the public login action with the safe requested URL encoded into the login destination field.
+- A safe originally requested application URL is captured as the destination when no explicit safe destination field is supplied.
+- A safe originally requested application URL supplied through CGI/web-server internal redirect environment values such as `REDIRECT_URL` and `REDIRECT_QUERY_STRING` is captured as the destination.
+- A safe originally requested application URL supplied through a same-origin `HTTP_REFERER` value is captured when direct request and internal redirect environment values do not identify the original protected URL.
+- External, cross-origin, and public-authentication-page referer values fall back to `/cgi-bin/issues.cgi`.
+- Unsafe destinations, including external URLs, scheme-relative URLs, URLs with schemes, and control-character values, fall back to `/cgi-bin/issues.cgi`.
 - The login form does not use `/issues.cgi` or a relative `issues.cgi` path as its default destination.
 - The login page includes concise user-facing sign-in text such as `Please sign in.`
 - The login page does not display implementation details about the authentication mechanism.
@@ -1122,12 +1131,14 @@ The tests shall verify:
 - Missing closing comment uses `DEFAULT_CLOSING_COMMENT`.
 - Empty closing comment uses `DEFAULT_CLOSING_COMMENT`.
 - Either accepted closing-comment field name is supported.
+- The default value of `DEFAULT_CLOSING_COMMENT` is `no comment provided`.
 - Successful close sets `status` to `closed`.
 - Successful close sets `state` to `complete`.
 - Successful close sets percent complete to `100`.
 - Successful close sets `completed_at`.
 - Successful close updates `updated_at`.
 - Successful close stores a closing comment.
+- Successful close records a compact issue-history entry that references the stored closing comment by `comment_id`.
 - Successful close redirects back to the issue view.
 
 # Cancel Issue Tests
@@ -1159,10 +1170,12 @@ The tests shall verify:
 - Missing cancel comment uses `DEFAULT_CLOSING_COMMENT`.
 - Empty cancel comment uses `DEFAULT_CLOSING_COMMENT`.
 - Either accepted cancel-comment field name is supported.
+- The default value of `DEFAULT_CLOSING_COMMENT` is `no comment provided`.
 - Successful cancel sets `status` to `canceled`.
 - Successful cancel sets `completed_at`.
 - Successful cancel updates `updated_at`.
 - Successful cancel stores a cancel comment.
+- Successful cancel records a compact issue-history entry that references the stored cancel comment by `comment_id`.
 - Successful cancel redirects back to the issue view.
 
 # Reopen Issue Tests
@@ -1345,12 +1358,31 @@ The tests shall inspect generated HTML and verify:
 - Role-specific controls appear for authorized users.
 - Role-specific controls do not appear for unauthorized users.
 - When configured, the banner image appears before the text page header.
+- When no banner image is configured, the CSS fallback header appears before the text page header.
+- The CSS fallback header structurally includes the `Issues` text, a 35-pixel height rule, a horizontal gradient rule, the `#E6E9EF` left-side color, and the `#BFC5D0` text color.
+- The CSS fallback header structurally uses a half-page-margin buffer above, left, and right.
 - HTML pages include a favicon link in the document head.
 - The current user appears in the page header where the page requires an authenticated user.
 - Authenticated page headers include a distinct `Logout` link adjacent to the current username.
+- Authenticated page headers structurally place the page title and current-user/logout display on the same row with the current-user/logout display right-aligned.
+- Authenticated page headers use the current-user label `Welcome,`.
 - The username is rendered as bold text and the logout link is rendered separately in parentheses.
 - Public authentication support pages do not display the authenticated page username/logout header.
 - Public authentication support pages render without displaying a current-user value.
+- When `ISSUES_VERSION` is non-empty, authenticated pages display a footer containing `Issues` followed by the version number.
+- Unauthenticated public pages do not display the application version number even when `ISSUES_VERSION` is non-empty.
+- Form pages that contain eligible text-entry controls include automatic focus on the top-left-most eligible control.
+- Issue list and issue view pages do not include automatic form-focus behavior.
+
+# Build Script Tests
+
+The tests shall verify:
+- The repository build script obtains the current local `HEAD` commit ID from Git.
+- The repository build script updates the `ISSUES_VERSION` assignment in `issues.cgi`.
+- The updated `ISSUES_VERSION` value uses the form `x.y.z+GITID`.
+- The repository build script preserves the existing `x.y.z` base version.
+- The repository build script replaces existing build metadata rather than appending a second metadata suffix.
+- The repository build script fails if the target `issues.cgi` file does not contain exactly one `ISSUES_VERSION` assignment.
 
 ## Not Required Initially
 
@@ -1393,7 +1425,7 @@ Subprocess tests shall verify:
 - POST request parsing works for a representative form.
 - A public authentication support action such as `action=login` can run without `REMOTE_USER`.
 - A request with no `action` and no `REMOTE_USER` defaults to the public login page.
-- A protected action without `REMOTE_USER` is still rejected.
+- A protected action without `REMOTE_USER` redirects to the public login action with a safe captured destination.
 
 Subprocess tests should be limited in number because monkeypatching does not naturally cross process boundaries. Most behavior shall be tested through direct function and handler-level tests.
 
@@ -1467,7 +1499,7 @@ The first pass should include at least:
 - application import and `issues.cgi` syntax checking
 - temporary SQLite database creation using the expected schema
 - fake user and fake group monkeypatching
-- authentication rejection for missing, empty, and unknown `REMOTE_USER`
+- login redirection for missing and empty `REMOTE_USER`, and authentication rejection for unknown `REMOTE_USER`
 - assignable-user and administrator recognition tests
 - one successful issue creation test
 - one issue visibility authorization test for each major role category

@@ -94,7 +94,9 @@ SessionMaxAge 28800
     AuthFormPassword httpd_password
     AuthFormLocation httpd_location
 
-    AuthFormLoginRequiredLocation /cgi-bin/issues.cgi?action=login
+    # Preserve the protected destination so successful login returns to the
+    # originally requested issue page rather than the default issue list.
+    AuthFormLoginRequiredLocation "/cgi-bin/issues.cgi?action=login&next_path=%{REQUEST_URI}&next_query=%{QUERY_STRING}"
     AuthFormLoginSuccessLocation /cgi-bin/issues.cgi
 
     # Optional: send app-level auth failures to the CGI-rendered page.

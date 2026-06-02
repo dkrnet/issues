@@ -397,7 +397,7 @@ def test_inline_priority_due_percent_and_state_validation_permissions_and_redire
         assert_client_or_forbidden(parse_headers, invoke_action(app, "set_state", make_form(action="set_state", id=str(bad_id), state="waiting"), "bob", method="POST"), "400")
 
 
-def test_close_cancel_and_reopen_full_lifecycle_side_effects(app, patched_environment, seed_issue, make_form, invoke_action, parse_headers, fetch_issue, fetch_comments):
+def test_close_cancel_and_reopen_full_lifecycle_side_effects(app, patched_environment, seed_issue, make_form, invoke_action, parse_headers, fetch_issue, fetch_comments, fetch_history):
     close_id = seed_issue(creator_username="alice", assigned_username="bob", status="open", pct_complete=20)
     assert 'name="closing_comment"' in text_body(parse_headers, invoke_action(app, "close", make_form(action="close", id=str(close_id)), "alice"))
     for user in ("alice", "bob", "admin"):
@@ -409,7 +409,10 @@ def test_close_cancel_and_reopen_full_lifecycle_side_effects(app, patched_enviro
         assert row["state"] == "complete"
         assert row["pct_complete"] == 100
         assert row["completed_at"] and row["updated_at"]
-        assert fetch_comments(issue_id)[0]["comment_text"] == app.DEFAULT_CLOSING_COMMENT
+        comment = fetch_comments(issue_id)[0]
+        assert comment["comment_text"] == app.DEFAULT_CLOSING_COMMENT
+        close_history = [row for row in fetch_history(issue_id) if row["action"] == "closed"][0]
+        assert close_history["comment_id"] == comment["id"]
     assert_client_or_forbidden(parse_headers, invoke_action(app, "close", make_form(action="close", id=str(close_id)), "mallory"), "403")
 
     cancel_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
@@ -418,7 +421,10 @@ def test_close_cancel_and_reopen_full_lifecycle_side_effects(app, patched_enviro
         assert_client_or_forbidden(parse_headers, invoke_action(app, "cancel", make_form(action="cancel", id=str(cancel_id)), user), "403")
     assert_redirect(parse_headers, invoke_action(app, "cancel", make_form(action="cancel", id=str(cancel_id), comment_text=""), "alice", method="POST"))
     assert fetch_issue(cancel_id)["status"] == "canceled"
-    assert fetch_comments(cancel_id)[0]["comment_text"] == app.DEFAULT_CLOSING_COMMENT
+    cancel_comment = fetch_comments(cancel_id)[0]
+    assert cancel_comment["comment_text"] == app.DEFAULT_CLOSING_COMMENT
+    cancel_history = [row for row in fetch_history(cancel_id) if row["action"] == "canceled"][0]
+    assert cancel_history["comment_id"] == cancel_comment["id"]
 
     closed_id = seed_issue(creator_username="alice", assigned_username="bob", status="closed", completed_at="2026-01-01T12:00:00+00:00")
     canceled_id = seed_issue(creator_username="alice", assigned_username="bob", status="canceled", completed_at="2026-01-01T12:00:00+00:00")

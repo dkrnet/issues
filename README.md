@@ -110,7 +110,7 @@ BANNER_DIMENSIONS=
 
 MAX_UPLOAD_BYTES=10485760
 MAX_FILENAME_LEN=255
-DEFAULT_CLOSING_COMMENT=no closing comment provided
+DEFAULT_CLOSING_COMMENT=no comment provided
 
 EMAIL_NOTIFICATIONS_ENABLED=False
 SENDMAIL_PATH=/usr/sbin/sendmail
@@ -220,7 +220,7 @@ When no `action` parameter is supplied:
 Authenticated pages display the current user and a logout link:
 
 ```text
-Current user: username (Logout)
+Welcome, username (Logout)
 ```
 
 The logout link points to the configured logout URL, currently:
@@ -234,6 +234,12 @@ The login form default destination is:
 ```text
 /cgi-bin/issues.cgi
 ```
+
+When a protected page is requested before authentication, the application redirects to the login page with the safe originally requested application URL embedded as the post-login destination. If the web server redirects to the login page before the application sees the protected request, configure the login URL to include the full original safe application URL, including its query string, as `httpd_location`, `next`, or `return_to`; the login page copies that value into the hidden form-authentication destination field. If the web-server configuration cannot URL encode the full destination, pass the path and raw query string separately as `next_path` and `next_query`, for example `/cgi-bin/issues.cgi?action=login&next_path=%{REQUEST_URI}&next_query=%{QUERY_STRING}`. Unsafe external or scheme-based destinations fall back to `/cgi-bin/issues.cgi`.
+
+When no banner image is configured, the application renders a 35-pixel CSS header with half-page-margin top and side spacing, `Issues` over a `#E6E9EF`-to-transparent gradient, and `#BFC5D0` header text. A non-empty internal `ISSUES_VERSION` value adds a small centered version footer to authenticated pages only; unauthenticated public pages do not display the version number.
+
+The source default application version is `1.0.0`. Run `./build.sh` from the repository to stamp `issues.cgi` with the current local Git `HEAD` commit ID using Semantic Versioning build metadata, such as `1.0.0+GITID`.
 
 ## Issue list
 

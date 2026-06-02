@@ -97,7 +97,7 @@ def test_issue_history_records_compact_entries_for_material_actions(app, patched
 
     invoke_action(app, "assign", make_form(action="assign", id=str(issue_id), assigned_username="admin"), "alice", method="POST")
     invoke_action(app, "set_priority", make_form(action="set_priority", id=str(issue_id), priority="high"), "alice", method="POST")
-    invoke_action(app, "set_due_date", make_form(action="set_due_date", id=str(issue_id), due_date="2026-06-01"), "alice", method="POST")
+    invoke_action(app, "set_due_date", make_form(action="set_due_date", id=str(issue_id), due_date="2099-06-01"), "alice", method="POST")
     invoke_action(app, "set_percent_complete", make_form(action="set_percent_complete", id=str(issue_id), pct_complete="40"), "admin", method="POST")
     invoke_action(app, "set_state", make_form(action="set_state", id=str(issue_id), state="complete"), "admin", method="POST")
 

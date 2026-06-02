@@ -236,6 +236,8 @@ def patched_environment(
 
     values = {
         "DB_FILE": str(temp_db),
+        "DEFAULT_CLOSING_COMMENT": "no comment provided",
+        "ISSUES_VERSION": "1.0.0",
         "PER_USER_CONFIG_DIR": str(temp_config_dir),
         "ASSIGNEE_GROUP": "users",
         "ASSIGNEE_EXCLUDE": "vwboot",
@@ -406,8 +408,16 @@ def assert_banner_uses_config(html: str, src: str = "", dimensions: str = "") ->
     body_html = lower[body_index:] if body_index >= 0 else lower
     if not src:
         assert 'class="banner"' not in lower
+        assert 'class="css-header"' in lower
+        assert 'class="css-header-title">issues</div>' in lower
+        assert "linear-gradient" in lower
+        assert "35px" in lower
+        assert "#e6e9ef" in lower
+        assert "#bfc5d0" in lower
+        assert "-0.75rem -0.75rem 1rem -0.75rem" in lower
         return
     assert src.lower() in lower
+    assert 'class="css-header"' not in lower
     if dimensions:
         width, height = dimensions.lower().split("x", 1)
         assert f'width="{width}"' in lower or f"width='{width}'" in lower or f"width: {width}" in lower or f"width:{width}" in lower
@@ -486,14 +496,22 @@ class CapturedCgiStdout:
 
 @pytest.fixture()
 def invoke_action(monkeypatch: pytest.MonkeyPatch):
-    def _invoke(app: Any, action: Optional[str] = "list", form: Optional[SimpleForm] = None, user: Optional[str] = "alice", method: str = "GET") -> bytes:
+    def _invoke(
+        app: Any,
+        action: Optional[str] = "list",
+        form: Optional[SimpleForm] = None,
+        user: Optional[str] = "alice",
+        method: str = "GET",
+        query_string: Optional[str] = None,
+    ) -> bytes:
         if form is None:
             form = SimpleForm({"action": action} if action is not None else {})
         if action is not None and "action" not in form:
             form._fields["action"] = Field(action)
+        default_query = f"action={action}" if method == "GET" and action is not None else ""
         env = {
             "REQUEST_METHOD": method,
-            "QUERY_STRING": f"action={action}" if method == "GET" and action is not None else "",
+            "QUERY_STRING": default_query if query_string is None else query_string,
             "REMOTE_USER": user or "",
             "CONTENT_TYPE": "application/x-www-form-urlencoded",
             "CONTENT_LENGTH": "0",

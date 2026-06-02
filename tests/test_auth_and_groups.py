@@ -6,12 +6,28 @@ from conftest import FakeUser, call_flex, find_callable
 
 
 def test_missing_empty_and_unknown_remote_user_are_rejected(app, patched_environment, invoke_action, parse_headers):
-    for remote_user in (None, "", "nobody"):
+    for remote_user in (None, ""):
         output = invoke_action(app, action="list", user=remote_user)
         status, headers, body = parse_headers(output)
-        joined = (status + " " + str(body)).lower()
-        assert "403" in joined or "forbidden" in joined or "auth" in joined
-        assert headers.get("content-type", "").startswith(("text/plain", "text/html"))
+        assert "303" in status or "302" in status
+        assert "action=login" in headers.get("location", "")
+        assert "httpd_location" in headers.get("location", "")
+
+    output = invoke_action(app, action="list", user="nobody")
+    status, headers, body = parse_headers(output)
+    joined = (status + " " + str(body)).lower()
+    assert "403" in joined or "forbidden" in joined or "auth" in joined
+    assert headers.get("content-type", "").startswith(("text/plain", "text/html"))
+
+
+def test_unauthenticated_protected_request_redirects_to_login_with_destination(app, patched_environment, invoke_action, make_form, parse_headers, monkeypatch):
+    monkeypatch.setenv("REQUEST_URI", "/cgi-bin/issues.cgi?action=view&id=42")
+    output = invoke_action(app, action="view", form=make_form(action="view", id="42"), user=None)
+    status, headers, _body = parse_headers(output)
+    assert "303" in status or "302" in status
+    location = headers.get("location", "")
+    assert "action=login" in location
+    assert "httpd_location=%2Fcgi-bin%2Fissues.cgi%3Faction%3Dview%26id%3D42" in location
 
 
 def test_valid_remote_user_is_accepted(app, patched_environment, invoke_action, parse_headers):
@@ -20,9 +36,10 @@ def test_valid_remote_user_is_accepted(app, patched_environment, invoke_action, 
     html = body.decode("utf-8", "replace") if isinstance(body, bytes) else body
     assert "403" not in (status + str(body))
     assert headers.get("content-type", "").startswith("text/html")
-    assert 'Current user: <strong>alice</strong>' in html
+    assert 'Welcome, <strong>alice</strong>' in html
     assert f'<a class="logout-link" href="{app.LOGOUT_URL}">Logout</a>' in html
     assert '<strong>alice</strong> <span class="logout-wrapper">(' in html
+    assert '<div class="header"><h1>Issue List</h1><div class="current-user">' in html
 
 
 def _html(parse_headers, output):
@@ -44,6 +61,7 @@ def test_public_authentication_support_pages_do_not_require_remote_user(app, pat
         assert "<html" in html.lower()
         assert title_fragment in html
         assert "Current user:" not in html
+        assert "Welcome," not in html
 
 
 
@@ -85,6 +103,68 @@ def test_login_destination_is_sanitized_and_password_is_not_echoed(app, patched_
     assert 'value="issues.cgi"' not in html.lower()
     assert "evil.example" not in html
     assert "secret-password" not in html
+
+
+def test_login_page_accepts_destination_embedded_in_login_url_aliases(app, patched_environment, invoke_action, make_form, parse_headers):
+    form = make_form(action="login", next="/cgi-bin/issues.cgi?action=view&id=77")
+    html = _html(parse_headers, invoke_action(app, action="login", form=form, user=None))
+    assert 'name="httpd_location" value="/cgi-bin/issues.cgi?action=view&amp;id=77"' in html
+
+    form = make_form(action="login", return_to="/cgi-bin/issues.cgi?action=history&id=77")
+    html = _html(parse_headers, invoke_action(app, action="login", form=form, user=None))
+    assert 'name="httpd_location" value="/cgi-bin/issues.cgi?action=history&amp;id=77"' in html
+
+    form = make_form(action="login", next="https://evil.example/")
+    html = _html(parse_headers, invoke_action(app, action="login", form=form, user=None))
+    assert 'value="/cgi-bin/issues.cgi"' in html.lower()
+    assert "evil.example" not in html
+
+
+def test_login_page_accepts_split_destination_without_url_encoded_query(app, patched_environment, invoke_action, make_form, parse_headers):
+    query = "action=login&next_path=/cgi-bin/issues.cgi&next_query=action=view&id=77"
+    form = make_form(action="login", next_path="/cgi-bin/issues.cgi", next_query="action=view", id="77")
+    html = _html(parse_headers, invoke_action(app, action="login", form=form, user=None, query_string=query))
+    assert 'name="httpd_location" value="/cgi-bin/issues.cgi?action=view&amp;id=77"' in html
+
+
+def test_login_page_captures_safe_requested_destination(app, patched_environment, invoke_action, make_form, parse_headers, monkeypatch):
+    monkeypatch.setenv("REQUEST_URI", "/cgi-bin/issues.cgi?action=view&id=42")
+    html = _html(parse_headers, invoke_action(app, action="login", form=make_form(action="login"), user=None))
+    assert 'name="httpd_location" value="/cgi-bin/issues.cgi?action=view&amp;id=42"' in html
+
+    monkeypatch.setenv("REQUEST_URI", "/cgi-bin/issues.cgi?action=login")
+    monkeypatch.setenv("REDIRECT_URL", "/cgi-bin/issues.cgi")
+    monkeypatch.setenv("REDIRECT_QUERY_STRING", "action=view&id=99")
+    html = _html(parse_headers, invoke_action(app, action="login", form=make_form(action="login"), user=None))
+    assert 'name="httpd_location" value="/cgi-bin/issues.cgi?action=view&amp;id=99"' in html
+
+    monkeypatch.delenv("REDIRECT_URL", raising=False)
+    monkeypatch.delenv("REDIRECT_QUERY_STRING", raising=False)
+    monkeypatch.setenv("REQUEST_URI", "/cgi-bin/issues.cgi?action=login")
+    monkeypatch.setenv("HTTP_HOST", "issues.example.test")
+    monkeypatch.setenv("HTTP_REFERER", "https://issues.example.test/cgi-bin/issues.cgi?action=history&id=42")
+    html = _html(parse_headers, invoke_action(app, action="login", form=make_form(action="login"), user=None))
+    assert 'name="httpd_location" value="/cgi-bin/issues.cgi?action=history&amp;id=42"' in html
+
+    monkeypatch.setenv("HTTP_REFERER", "https://evil.example/cgi-bin/issues.cgi?action=view&id=42")
+    html = _html(parse_headers, invoke_action(app, action="login", form=make_form(action="login"), user=None))
+    assert 'value="/cgi-bin/issues.cgi"' in html.lower()
+    assert "evil.example" not in html
+
+    for unsafe in ("javascript:alert(1)", "//evil.example/path", "https://evil.example/", "/cgi-bin/issues.cgi?action=login_failed"):
+        monkeypatch.delenv("REDIRECT_URL", raising=False)
+        monkeypatch.delenv("REDIRECT_QUERY_STRING", raising=False)
+        monkeypatch.delenv("HTTP_REFERER", raising=False)
+        monkeypatch.setenv("REQUEST_URI", unsafe)
+        html = _html(parse_headers, invoke_action(app, action="login", form=make_form(action="login"), user=None))
+        assert 'value="/cgi-bin/issues.cgi"' in html.lower()
+        assert "evil.example" not in html
+        assert "javascript:" not in html.lower()
+
+    form = make_form(action="login", httpd_location="/cgi-bin/issues.cgi?action=logged_out")
+    html = _html(parse_headers, invoke_action(app, action="login", form=form, user=None))
+    assert 'value="/cgi-bin/issues.cgi"' in html.lower()
+    assert "logged_out" not in html
 
 
 def test_administrator_recognition_uses_fake_group_membership(app, patched_environment, monkeypatch):
