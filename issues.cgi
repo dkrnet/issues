@@ -205,6 +205,7 @@ AUTO_REFRESH_SECONDS = {
     "30 minutes": 30 * 60,
 }
 ISSUES_PER_PAGE = 25
+SEARCH_HISTORY_LIMIT = 10
 
 SITE_CONFIG_KEYS = {
     "DB_FILE",
@@ -432,7 +433,18 @@ textarea {{ width: 100%; min-height: 12rem; }}
 .static-filter-left {{ display: flex; align-items: center; gap: 0.75em; flex-wrap: wrap; }}
 .static-filter-left label {{ margin-right: 0; }}
 .static-filter-search {{ margin-left: auto; white-space: nowrap; }}
-.static-filter-search input[type=search] {{ width: clamp(12em, 28vw, 32em); max-width: 100%; }}
+.search-box-with-history {{ position: relative; display: inline-block; }}
+.search-box-with-history input[type=search] {{ width: clamp(12em, 28vw, 32em); max-width: 100%; padding-left: 2rem; }}
+.search-history-toggle {{ position: absolute; left: 0.3rem; top: 50%; transform: translateY(-50%); z-index: 2; border: 0; background: transparent; color: #555; padding: 0.1rem 0.25rem; line-height: 1; }}
+.search-history-pane {{ position: absolute; top: calc(100% + 0.25rem); left: 0; right: 0; z-index: 5; min-width: 16rem; max-height: 18rem; overflow-y: auto; background: #fff; border: 1px solid #bbb; box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.16); white-space: normal; }}
+.search-history-pane ul {{ list-style: none; margin: 0; padding: 0.25rem 0; }}
+.search-history-pane li {{ display: flex; align-items: stretch; justify-content: space-between; gap: 0.35rem; margin: 0; padding: 0.15rem 0.25rem; }}
+.search-history-term {{ flex: 1 1 auto; align-self: stretch; overflow-wrap: anywhere; border: 0; background: transparent; padding: 0.25rem 0.35rem; text-align: left; color: #222; font: inherit; border-radius: 2px; }}
+.search-history-term:hover, .search-history-term:focus {{ background: #f4f4f4; }}
+.search-history-delete {{ flex: 0 0 auto; border: 0; background: transparent; color: #333; padding: 0.15rem 0.35rem; text-decoration: none; font: inherit; font-size: 1.05rem; line-height: 1; }}
+.search-history-empty {{ margin: 0; padding: 0.5rem; color: #666; }}
+.search-history-clear {{ border-top: 1px solid #ddd; padding: 0.4rem; text-align: center; }}
+.search-history-clear button {{ border: 1px solid #bbb; background: #f7f7f7; color: #333; padding: 0.2rem 0.55rem; }}
 .dual-listbox {{ display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.4rem 0; }}
 .dual-listbox-column {{ display: flex; flex-direction: column; gap: 0.25rem; }}
 .dual-listbox-column select {{ min-width: 12rem; width: clamp(12rem, 22vw, 18rem); }}
@@ -531,6 +543,34 @@ button, input[type=submit] {{ cursor: pointer; }}
         renderLocalTimestamps();
         renderRelativeRefreshTimes();
     }}
+    window.toggleSearchHistory = function(button) {{
+        var wrapper = button && button.parentNode;
+        var pane = wrapper && wrapper.getElementsByClassName("search-history-pane")[0];
+        if (!pane) {{
+            return;
+        }}
+        var panes = document.getElementsByClassName("search-history-pane");
+        for (var i = 0; i < panes.length; i += 1) {{
+            if (panes[i] !== pane) {{
+                panes[i].hidden = true;
+            }}
+        }}
+        pane.hidden = !pane.hidden;
+    }};
+    window.applySearchHistoryTerm = function(button, term) {{
+        var form = button && button.form;
+        if (!form) {{
+            return;
+        }}
+        var search = form.elements["search"];
+        if (search) {{
+            search.value = term;
+        }}
+        form.submit();
+    }};
+    window.goToSearchHistoryUrl = function(url) {{
+        window.location.href = url;
+    }};
     function hasClass(node, className) {{
         if (!node || !node.className) {{
             return false;
@@ -643,8 +683,27 @@ button, input[type=submit] {{ cursor: pointer; }}
         }}
         return true;
     }};
+    function installSearchHistoryDismissal() {{
+        if (!document.addEventListener) {{
+            return;
+        }}
+        document.addEventListener("click", function(event) {{
+            var target = event.target;
+            while (target) {{
+                if (target.className && String(target.className).indexOf("search-box-with-history") >= 0) {{
+                    return;
+                }}
+                target = target.parentNode;
+            }}
+            var panes = document.getElementsByClassName("search-history-pane");
+            for (var i = 0; i < panes.length; i += 1) {{
+                panes[i].hidden = true;
+            }}
+        }});
+    }}
     if (document.addEventListener) {{
         document.addEventListener("DOMContentLoaded", function() {{
+            installSearchHistoryDismissal();
             renderDynamicTimes();
             window.setInterval(renderRelativeRefreshTimes, 60000);
         }});
@@ -1322,21 +1381,60 @@ def normalize_config(data: dict[str, Any], admin: bool = False) -> dict[str, Any
     }
 
 
-def load_user_config(username: str, admin: bool = False) -> dict[str, Any]:
+def normalize_search_history(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    history: list[str] = []
+    for item in value:
+        term = str(item if item is not None else "").strip()
+        if term and term not in history:
+            history.append(term)
+        if len(history) >= SEARCH_HISTORY_LIMIT:
+            break
+    return history
+
+
+def load_user_config_data(username: str) -> dict[str, Any]:
     try:
         with config_path(username).open("r", encoding="utf-8") as f:
             data = json.load(f)
+        if isinstance(data, dict):
+            return data
     except Exception:
-        data = dict(CONFIG_DEFAULTS)
-    return normalize_config(data, admin)
+        pass
+    return dict(CONFIG_DEFAULTS)
+
+
+def load_user_config(username: str, admin: bool = False) -> dict[str, Any]:
+    return normalize_config(load_user_config_data(username), admin)
+
+
+def load_user_search_history(username: str) -> list[str]:
+    return normalize_search_history(load_user_config_data(username).get("search_history", []))
+
+
+def add_search_history_term(history: Iterable[str], term: str) -> list[str]:
+    normalized_term = str(term or "").strip()
+    values = [normalized_term] if normalized_term else []
+    values.extend(str(item).strip() for item in history if str(item).strip() != normalized_term)
+    return normalize_search_history(values)
 
 
 def save_user_config(username: str, cfg: dict[str, Any]) -> None:
     try:
         Path(PER_USER_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
         tmp = config_path(username).with_suffix(".tmp")
+        stored = dict(cfg)
+        if "search_history" not in stored:
+            history = load_user_search_history(username)
+            if history:
+                stored["search_history"] = history
+        elif not stored["search_history"]:
+            stored["search_history"] = []
+        else:
+            stored["search_history"] = normalize_search_history(stored["search_history"])
         with tmp.open("w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2, sort_keys=True)
+            json.dump(stored, f, indent=2, sort_keys=True)
         tmp.replace(config_path(username))
     except Exception:
         # Preferences must not prevent core issue tracking from working.
@@ -1649,6 +1747,54 @@ def list_request_params(cfg: dict[str, Any], page: int, admin: bool = False) -> 
     return params
 
 
+def list_cfg_from_form(form: cgi.FieldStorage, defaults: dict[str, Any], admin: bool) -> dict[str, Any]:
+    return normalize_config({
+        "status": field_value(form, "status", defaults["status"]),
+        "priority": field_value(form, "priority", defaults["priority"]),
+        "creator": field_value(form, "creator", defaults["creator"]),
+        "assignee": field_value(form, "assignee", defaults["assignee"]),
+        "state": field_value(form, "state", defaults["state"]),
+        "due_date": field_value(form, "due_date", defaults["due_date"]),
+        "has_comments": field_value(form, "has_comments", "") in ("1", "true", "on", "yes"),
+        "has_attachments": field_value(form, "has_attachments", "") in ("1", "true", "on", "yes"),
+        "search": field_value(form, "search", ""),
+        "auto_refresh": field_value(form, "auto_refresh", defaults["auto_refresh"]),
+    }, admin)
+
+
+def render_search_history_pane(cfg: dict[str, Any], history: list[str], page: int, admin: bool = False) -> str:
+    if history:
+        items = []
+        for term in history:
+            remove_params = list_request_params(cfg, page, admin)
+            remove_params["term"] = term
+            remove_url = action_url("search_history_remove", **remove_params)
+            items.append(
+                f'<li><button type="button" class="search-history-term" onclick="applySearchHistoryTerm(this, {h(json.dumps(term))})">{h(term)}</button>'
+                f'<button type="button" class="search-history-delete" onclick="goToSearchHistoryUrl({h(json.dumps(remove_url))})" '
+                f'aria-label="Remove search term {h(term)}" title="Remove search term">&#128465;</button></li>'
+            )
+        content = f'<ul>{"".join(items)}</ul>'
+    else:
+        content = '<p class="search-history-empty">No previous searches.</p>'
+    clear_params = list_request_params(cfg, page, admin)
+    clear_url = action_url("search_history_clear", **clear_params)
+    content += (
+        f'<div class="search-history-clear"><button type="button" onclick="goToSearchHistoryUrl({h(json.dumps(clear_url))})">'
+        "Clear search history</button></div>"
+    )
+    return f'<div class="search-history-pane" hidden>{content}</div>'
+
+
+def render_search_control(cfg: dict[str, Any], history: list[str], page: int, admin: bool = False) -> str:
+    return f'''
+<div class="search-box-with-history">
+<button type="button" class="search-history-toggle" aria-label="Search history" title="Search history" onclick="toggleSearchHistory(this)">&#128269;</button>
+<input type="search" name="search" value="{h(cfg.get('search', ''))}" placeholder="Search issues" aria-label="Search issues">
+{render_search_history_pane(cfg, history, page, admin)}
+</div>'''
+
+
 def render_auto_refresh_script(cfg: dict[str, Any], page: int, admin: bool = False) -> str:
     seconds = AUTO_REFRESH_SECONDS.get(cfg.get("auto_refresh", "never"), 0)
     if not seconds:
@@ -1683,19 +1829,15 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
     admin = is_admin(username)
     submitted = list_filter_submitted(form)
     cfg = load_user_config(username, admin)
+    search_history = load_user_search_history(username)
     if submitted:
-        cfg = normalize_config({
-            "status": field_value(form, "status", cfg["status"]),
-            "priority": field_value(form, "priority", cfg["priority"]),
-            "creator": field_value(form, "creator", cfg["creator"]),
-            "assignee": field_value(form, "assignee", cfg["assignee"]),
-            "state": field_value(form, "state", cfg["state"]),
-            "due_date": field_value(form, "due_date", cfg["due_date"]),
-            "has_comments": field_value(form, "has_comments", "") in ("1", "true", "on", "yes"),
-            "has_attachments": field_value(form, "has_attachments", "") in ("1", "true", "on", "yes"),
-            "search": field_value(form, "search", cfg["search"]),
-            "auto_refresh": field_value(form, "auto_refresh", cfg["auto_refresh"]),
-        }, admin)
+        cfg = list_cfg_from_form(form, cfg, admin)
+        search_history = add_search_history_term(search_history, cfg.get("search", ""))
+        cfg["search_history"] = search_history
+    else:
+        # REQUIREMENTS: Stored searches are kept in history but are not applied
+        # automatically on an initial issue-list load.
+        cfg["search"] = ""
 
     static_conditions, static_params = build_static_list_filters(cfg, username, admin)
     static_where = list_where_clause(static_conditions)
@@ -1721,6 +1863,10 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
         if cfg["status"] not in ("open", "any"):
             cfg["due_date"] = "any"
         if submitted:
+            if search_history:
+                cfg["search_history"] = search_history
+            else:
+                cfg.pop("search_history", None)
             save_user_config(username, cfg)
 
         final_conditions = list(static_conditions)
@@ -1756,6 +1902,7 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
     # checkbox immediately submits the list filter form.
     comments_checked = " checked" if cfg["has_comments"] else ""
     attachments_checked = " checked" if cfg["has_attachments"] else ""
+    search_control = render_search_control(cfg, search_history, page, admin)
     filter_form = f"""
 <form method="get" action="issues.cgi">
 <input type="hidden" name="action" value="list">
@@ -1768,7 +1915,7 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
 <label><input type="checkbox" name="has_comments" value="1"{comments_checked} onclick="this.form.submit()"> Has comments</label>
 <label><input type="checkbox" name="has_attachments" value="1"{attachments_checked} onclick="this.form.submit()"> Has attachments</label>
 </div>
-<div class="static-filter-search"><label>Search <input type="search" name="search" value="{h(cfg.get('search', ''))}" placeholder="Search issues"></label></div>
+<div class="static-filter-search">{search_control}</div>
 </div>
 </div>
 <div class="dynamic-filters">
@@ -2144,6 +2291,29 @@ def action_tags_update(form: cgi.FieldStorage, username: str) -> None:
         if recipients:
             notify_issue_event(issue_id, username, recipients, "Tagged user removed")
     redirect(action_url("view", id=issue_id))
+
+
+def search_history_redirect(form: cgi.FieldStorage, username: str) -> None:
+    admin = is_admin(username)
+    cfg = list_cfg_from_form(form, load_user_config(username, admin), admin)
+    page = parse_page_number(form)
+    redirect(action_url("list", **list_request_params(cfg, page, admin)))
+
+
+def action_search_history_remove(form: cgi.FieldStorage, username: str) -> None:
+    term = field_value(form, "term").strip()
+    history = [item for item in load_user_search_history(username) if item != term]
+    cfg = list_cfg_from_form(form, load_user_config(username, is_admin(username)), is_admin(username))
+    cfg["search_history"] = history
+    save_user_config(username, cfg)
+    search_history_redirect(form, username)
+
+
+def action_search_history_clear(form: cgi.FieldStorage, username: str) -> None:
+    cfg = list_cfg_from_form(form, load_user_config(username, is_admin(username)), is_admin(username))
+    cfg["search_history"] = []
+    save_user_config(username, cfg)
+    search_history_redirect(form, username)
 
 
 def action_attach(form: cgi.FieldStorage, username: str) -> None:
@@ -2977,6 +3147,8 @@ ACTION_MAP = {
     "auth_error": action_auth_error,
     "favicon": action_favicon,
     "list": action_list,
+    "search_history_remove": action_search_history_remove,
+    "search_history_clear": action_search_history_clear,
     "view": action_view,
     "history": action_history,
     "create_submit": action_create_submit,

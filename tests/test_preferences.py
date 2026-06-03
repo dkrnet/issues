@@ -379,7 +379,7 @@ def test_issue_list_search_matches_title_description_comments_and_attachment_met
     _assert_contains_only(content_html, [], ["Printer queue failure", "Network problem", "Payroll laptop", "Accounting share", "Scanner issue", "Timestamp issue", "Hidden blob", "Unrelated"])
 
 
-def test_search_is_saved_restored_cleared_and_preserved_by_pagination(app, patched_environment, seed_issue, write_config, invoke_action, make_form, parse_headers, temp_config_dir):
+def test_search_is_saved_to_history_not_auto_restored_and_preserved_by_pagination(app, patched_environment, seed_issue, write_config, invoke_action, make_form, parse_headers, temp_config_dir):
     seed_issue(title="Printer queue failure", description="Routine description", creator_username="alice", assigned_username="bob")
     seed_issue(title="Unrelated", description="Routine description", creator_username="alice", assigned_username="bob")
 
@@ -387,16 +387,68 @@ def test_search_is_saved_restored_cleared_and_preserved_by_pagination(app, patch
     _assert_contains_only(submitted, ["Printer queue failure"], ["Unrelated"])
     saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
     assert saved["search"] == "printer"
+    assert saved["search_history"] == ["printer"]
+    assert 'type="hidden" name="search" value="printer"' in submitted
 
-    restored = _html(parse_headers, _list(app, invoke_action, make_form, "alice"))
-    _assert_contains_only(restored, ["Printer queue failure"], ["Unrelated"])
-    assert 'name="search" value="printer"' in restored
-    assert 'type="hidden" name="search" value="printer"' in restored
+    initial = _html(parse_headers, _list(app, invoke_action, make_form, "alice"))
+    assert "Printer queue failure" in initial and "Unrelated" in initial
+    assert 'name="search" value=""' in initial
+    assert 'type="hidden" name="search" value=""' in initial
+    assert 'class="search-history-pane"' in initial
+    assert 'class="search-history-term"' in initial
+    assert ">printer</button>" in initial
+    assert '<a class="search-history-term"' not in initial
+
+    page_without_search = _html(parse_headers, _list(app, invoke_action, make_form, "alice", page="1"))
+    assert "Printer queue failure" in page_without_search and "Unrelated" in page_without_search
+    assert 'name="search" value=""' in page_without_search
 
     cleared = _html(parse_headers, _list(app, invoke_action, make_form, "alice", status="any", priority="any", search=""))
     assert "Printer queue failure" in cleared and "Unrelated" in cleared
     saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
     assert saved["search"] == ""
+    assert saved["search_history"] == ["printer"]
+
+
+def test_search_history_is_rolling_newest_first_clickable_removable_and_clearable(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers, temp_config_dir):
+    for index in range(12):
+        seed_issue(title=f"Search target {index}", description=f"term-{index}", creator_username="alice", assigned_username="bob")
+        _html(parse_headers, _list(app, invoke_action, make_form, "alice", status="any", priority="any", search=f"term-{index}"))
+
+    saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
+    assert saved["search_history"] == [f"term-{index}" for index in range(11, 1, -1)]
+
+    promoted = _html(parse_headers, _list(app, invoke_action, make_form, "alice", status="any", priority="any", search="term-5"))
+    assert "Search target 5" in promoted
+    saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
+    assert saved["search_history"][0] == "term-5"
+    assert len(saved["search_history"]) == 10
+    assert 'action=search_history_remove' in promoted
+    assert 'action=search_history_clear' in promoted
+    assert 'class="search-history-delete"' in promoted
+    assert '<div class="search-history-clear"><button type="button"' in promoted
+    assert 'class="search-history-delete" href=' not in promoted
+
+    removed = invoke_action(
+        app,
+        "search_history_remove",
+        make_form(action="search_history_remove", status="any", priority="any", search="term-5", term="term-5"),
+        "alice",
+    )
+    status, headers, _body = parse_headers(removed)
+    assert status.startswith(("302", "303"))
+    assert "action=list" in headers["location"]
+    saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
+    assert "term-5" not in saved["search_history"]
+
+    invoke_action(
+        app,
+        "search_history_clear",
+        make_form(action="search_history_clear", status="any", priority="any", search="term-4"),
+        "alice",
+    )
+    saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
+    assert saved["search_history"] == []
 
 
 def test_search_respects_authorization_updates_dynamic_options_and_has_no_side_effects(app, patched_environment, seed_issue, seed_comment, invoke_action, make_form, parse_headers, fetch_history, monkeypatch):
@@ -431,4 +483,3 @@ def test_search_uses_literal_parameterized_like_text(app, patched_environment, s
 
     underscore_html = _html(parse_headers, _list(app, invoke_action, make_form, "alice", status="any", priority="any", search="Under_score"))
     _assert_contains_only(underscore_html, ["Under_score issue"], ["UnderXscore issue"])
-

@@ -69,6 +69,7 @@ NOTIFICATION_SUBJECT_PREFIX - prefix used on notification email subject lines
 ISSUE_BASE_URL - optional base URL used to include issue links in notification email bodies  
 NOTIFICATION_TRIAGE_RECIPIENTS - fallback notification recipients for unassigned issues  
 NOTIFICATION_BODY_MAX_CHARS - maximum number of characters from comment and description text included in notification email bodies  
+SEARCH_HISTORY_LIMIT - maximum number of per-user issue-list search terms retained in history  
 
 # Variable Initial Values
 
@@ -107,6 +108,7 @@ NOTIFICATION_SUBJECT_PREFIX - `[Issues]`
 ISSUE_BASE_URL - empty string
 NOTIFICATION_TRIAGE_RECIPIENTS - `root`
 NOTIFICATION_BODY_MAX_CHARS - `8192`
+SEARCH_HISTORY_LIMIT - `10`
 
 # Site Configuration File
 
@@ -470,6 +472,21 @@ To rebuild the application from scratch, the database must provide:
 - The Search field grows when additional horizontal space is available and shrinks when horizontal space is constrained.
 - The responsive Search field sizing is implemented with CSS and does not require JavaScript.
 - The Search field does not have separate Apply or Clear buttons.
+- The Search field does not have a visible text label.
+- A magnifying-glass control appears inside the left side of the Search field.
+- Activating the magnifying-glass control opens a drop-down-like search-history pane.
+- The search-history pane displays previous non-empty search terms for the acting user.
+- Search-history terms are displayed newest first.
+- The search-history pane displays at most `SEARCH_HISTORY_LIMIT` search terms.
+- Search-history terms are rendered as clickable text controls, not hyperlinks.
+- Search-history terms change to a very light grey background when hovered.
+- The search-history term hover background spans the available row width minus the trash/delete control.
+- Selecting a search-history term applies that term to the issue-list search.
+- Selecting a search-history term also moves that term to the top of the acting user's search history.
+- Each search-history term includes a right-justified trash/delete control.
+- Trash/delete controls use a darker unobtrusive color, are not black, and remain large enough to read clearly.
+- Activating a search-history term trash/delete control removes that term from the acting user's search history.
+- The bottom of the search-history pane includes a button to clear the acting user's search history.
 - Pressing Enter while focus is in the Search field submits the list filter form and applies the search.
 - Clearing the Search field and pressing Enter clears the active search and clears the saved search preference.
 - Blank submitted form/query values must be preserved during CGI parsing so intentional clears, including `search=`, are distinguishable from omitted fields.
@@ -512,7 +529,10 @@ To rebuild the application from scratch, the database must provide:
 - Static filters, including Search, are applied before Dynamic filter group options are generated.
 - Dynamic filter options reflect the current Search value.
 - Search is applied before pagination.
-- Search text is saved and restored as a per-user list preference.
+- Submitted non-empty search text is added to the acting user's per-user search history.
+- Search history is a rolling window of the acting user's last `SEARCH_HISTORY_LIMIT` unique non-empty searches.
+- Search history is persisted in the acting user's per-user configuration file.
+- Initial issue-list loads do not automatically reapply the acting user's last search term.
 - Page navigation and auto-refresh preserve the active Search value.
 - Search actions do not create issue-history entries.
 - Search actions do not send notification email.
@@ -1394,7 +1414,9 @@ To rebuild the application from scratch, the database must provide:
 - The configuration file path uses the current user name.
 - The application applies only allowed status, priority, creator, assignee, state, due-date, `has_comments`, `has_attachments`, and `auto_refresh` values from the stored configuration.
 - The application no longer stores or applies an all-users list filter preference.
-- All Static and Dynamic filter group preferences, including Search, are saved and read in the same manner as the status filter.
+- All Static and Dynamic filter group preferences, including the current submitted Search value, are saved and read in the same manner as the status filter.
+- Stored Search values are not automatically applied on initial issue-list loads; stored Search values are used only as submitted active filter values or search-history entries.
+- Search history is saved and read from the acting user's per-user configuration file.
 - The auto-refresh preference is saved and read in the same manner as list filter preferences.
 
 ## Issue, Comment, Tagged User, Attachment, and History Storage

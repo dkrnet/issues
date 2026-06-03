@@ -671,6 +671,20 @@ The tests shall verify:
 - The Search field width responds to browser/window width with a usable minimum and reasonable maximum width.
 - The Search field's responsive sizing is implemented with CSS and does not require JavaScript.
 - The Search field has no separate Apply or Clear buttons.
+- The Search field has no visible text label.
+- A magnifying-glass control appears inside the left side of the Search field.
+- The magnifying-glass control opens a drop-down-like search-history pane.
+- The search-history pane contains previous non-empty search terms.
+- Search-history terms are sorted newest first.
+- Search-history terms are rendered as clickable text controls, not hyperlinks.
+- Search-history term hover/focus styling changes the term background to a very light grey.
+- Search-history term hover/focus styling spans the available row width minus the trash/delete control.
+- Selecting a search-history term applies that term to the search.
+- Selecting a search-history term moves that term to the top of search history.
+- Each search-history term includes a right-justified trash/delete control.
+- Trash/delete controls use a darker unobtrusive color, are not black, and remain large enough to read clearly.
+- Activating a search-history term trash/delete control removes that term from search history.
+- The bottom of the search-history pane includes a clear-history button.
 - Priority appears to the left of Creator, Assignee, and State in the Dynamic filter group.
 - The creator filter dropdown appears for system administrators.
 - The creator filter dropdown does not appear for non-administrators.
@@ -722,6 +736,14 @@ The tests shall verify:
 - Pressing Enter in the Search field is represented by normal list form submission and applies the search.
 - Clearing the Search field and submitting the list form clears the saved search preference.
 - Regression coverage must exercise real CGI GET parsing with `search=` to ensure blank submitted values are preserved and do not reload a stale saved search.
+- Initial issue-list loads do not automatically reapply the last stored search term.
+- Pagination and auto-refresh preserve the active submitted Search value.
+- Submitted non-empty searches are saved to per-user search history.
+- Per-user search history keeps a rolling window of the last 10 unique non-empty searches.
+- Per-user search history displays newest first.
+- Reusing a search term moves it to the top of search history.
+- Search-history removal deletes only the selected search term.
+- Search-history clearing removes all search-history terms.
 - Search matches issue title.
 - Search matches issue description.
 - Search matches comment text.
@@ -1293,7 +1315,8 @@ The tests shall verify:
 - Changed list filters are applied to the issue list.
 - The configuration path is based on the current username.
 - Status, due-date, `has_comments`, `has_attachments`, priority, creator, assignee, state, and auto-refresh preferences are saved and read consistently.
-- All Static and Dynamic filter group preferences are saved and read in the same manner as the status filter.
+- All Static and Dynamic filter group preferences are saved and read in the same manner as the status filter, except stored Search values are not automatically applied on initial issue-list loads.
+- Search history is saved and read from the acting user's per-user configuration file.
 - The auto-refresh preference is saved and read in the same manner as list filter preferences.
 - Missing `has_comments` and `has_attachments` checkbox fields in a submitted list-filter request are saved as false, because unchecked HTML checkboxes are omitted from GET form submissions.
 - Invalid stored status values are ignored or replaced with defaults.

@@ -108,6 +108,16 @@ def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_co
     assert 'class="static-filter-left"' in static_html
     assert 'class="static-filter-search"' in static_html
     assert 'type="search" name="search"' in static_html
+    assert '<label>Search <input type="search"' not in static_html
+    assert 'class="search-history-toggle"' in static_html
+    assert '&#128269;' in static_html
+    assert 'class="search-history-pane"' in static_html
+    assert 'Clear search history' in static_html
+    assert '.search-history-term:hover' in admin_html and 'background: #f4f4f4' in admin_html
+    assert 'flex: 1 1 auto' in admin_html and 'align-self: stretch' in admin_html
+    assert '.search-history-delete' in admin_html and 'color: #333' in admin_html
+    assert 'font-size: 1.05rem' in admin_html
+    assert '.search-history-clear button' in admin_html
     assert static_html.find('class="static-filter-left"') < static_html.find('class="static-filter-search"')
     assert static_html.find('name="has_attachments"') < static_html.find('name="search"')
     assert 'name="priority"' not in static_html
@@ -132,7 +142,7 @@ def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_co
     assert 'name="has_attachments"' in admin_html
     assert "Has comments" in admin_html
     assert "Has attachments" in admin_html
-    assert "Search" in admin_html
+    assert "Search issues" in admin_html
     assert "static-filter-row" in admin_html
     assert "clamp(12em, 28vw, 32em)" in admin_html
     assert "Comments only" not in admin_html

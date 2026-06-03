@@ -284,6 +284,8 @@ The filters are organized into two groups:
 
 The Search field appears on the right side of the Static filter row when screen width allows. Its width grows and shrinks with the browser window up to a reasonable maximum. Pressing Enter in the Search field applies the search; clearing the field and pressing Enter clears the active search.
 
+Initial issue-list loads do not automatically reapply the user's last search term. Pagination and automatic list refresh preserve the currently active search value through the current list URL. The magnifying-glass control inside the Search field opens a search-history pane containing the user's last 10 non-empty searches, newest first. Selecting a history entry applies that search and promotes it to the top of the history. History entries are rendered as clickable text controls rather than hyperlinks, and the text area changes to very light grey on hover across the available row width. Each history entry includes a darker but unobtrusive delete control, and the bottom of the pane includes a clear-history button.
+
 Search matches issue title, issue description, comment text, and attachment metadata such as filename, uploader username, and attachment creation timestamp. Attachment file content is not searched.
 
 The Dynamic filter options are generated from rows matching the current Static filter settings, including Search.
