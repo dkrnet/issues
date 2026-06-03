@@ -17,7 +17,7 @@ The application is not intended to replace enterprise issue-tracking systems for
 - SQLite-backed issue tracking
 - Single-file CGI deployment
 - Apache-authenticated users through `REMOTE_USER`
-- Role-aware access control based on issue creator, assignee, and administrator group membership
+- Role-aware access control based on issue creator, assignee, tagged participants, and administrator group membership
 - Issue creation, editing, assignment, closing, canceling, and reopening
 - Compact issue history for material actions taken on issues
 - Optional local notification email through a sendmail-compatible command
@@ -130,6 +130,7 @@ Required tables:
 - `issues`
 - `comments`
 - `attachments`
+- `issue_tagged_users`
 - `issue_history`
 
 The schema is described in detail in `requirements.md`.
@@ -172,6 +173,15 @@ CREATE TABLE IF NOT EXISTS attachments (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS issue_tagged_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id INTEGER NOT NULL,
+    tagged_username TEXT NOT NULL,
+    tagged_by_username TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(issue_id, tagged_username)
+);
+
 CREATE TABLE IF NOT EXISTS issue_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     issue_id INTEGER NOT NULL,
@@ -185,6 +195,8 @@ CREATE TABLE IF NOT EXISTS issue_history (
 
 CREATE INDEX IF NOT EXISTS idx_comments_issue_id ON comments(issue_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_issue_id ON attachments(issue_id);
+CREATE INDEX IF NOT EXISTS idx_issue_tagged_users_issue_user
+    ON issue_tagged_users(issue_id, tagged_username);
 CREATE INDEX IF NOT EXISTS idx_issue_history_issue_id_created_at
     ON issue_history(issue_id, created_at DESC, id DESC);
 SQL
@@ -292,7 +304,9 @@ Issues can be:
 - closed
 - canceled
 
-Open issues can be updated according to user role and issue relationship. Closed and canceled issues are read-only except for administrator actions allowed by the application requirements.
+Open issues can be updated according to user role and issue relationship. Tagged users can view, comment on, and attach files to open issues, but do not receive edit, assignment, close, cancel, reopen, priority, due-date, state, or percent-complete permissions unless another role grants them. Closed and canceled issues are read-only except for administrator actions allowed by the application requirements.
+
+Issue creators, assigned users, and administrators manage tagged users with a dual listbox. Available tag candidates appear on the left, current tagged users appear on the right, and selected users move between the boxes with the controls between them. The creator and assigned user are excluded from both tagged-user boxes.
 
 Closing an issue sets its state to `complete` and its percent complete to `100`.
 
@@ -328,7 +342,7 @@ NOTIFICATION_TRIAGE_RECIPIENTS=root
 NOTIFICATION_BODY_MAX_CHARS=8192
 ```
 
-When enabled, notifications are sent for assignment or reassignment, comments, issue close, issue reopen, and due-date changes. Assignment and reassignment notify the newly assigned user. Reassignment from one user to another also notifies the previously assigned user, unless the previously assigned user is the actor who made the change. Ordinary page views, list filtering, pagination, auto-refresh, history page views, and attachment downloads do not send notification email.
+When enabled, notifications are sent for assignment or reassignment, tagged-user changes, comments, issue close, issue reopen, and due-date changes. Assignment and reassignment notify the newly assigned user. Reassignment from one user to another also notifies the previously assigned user, unless the previously assigned user is the actor who made the change. Tagged users receive the same issue-activity notifications as issue creators. Ordinary page views, list filtering, pagination, auto-refresh, history page views, and attachment downloads do not send notification email.
 
 For unassigned issues, notification-triggering actions use `NOTIFICATION_TRIAGE_RECIPIENTS` when there would otherwise be no non-actor recipient. The default triage recipient is `root`.
 

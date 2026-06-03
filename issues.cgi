@@ -433,6 +433,11 @@ textarea {{ width: 100%; min-height: 12rem; }}
 .static-filter-left label {{ margin-right: 0; }}
 .static-filter-search {{ margin-left: auto; white-space: nowrap; }}
 .static-filter-search input[type=search] {{ width: clamp(12em, 28vw, 32em); max-width: 100%; }}
+.dual-listbox {{ display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.4rem 0; }}
+.dual-listbox-column {{ display: flex; flex-direction: column; gap: 0.25rem; }}
+.dual-listbox-column select {{ min-width: 12rem; width: clamp(12rem, 22vw, 18rem); }}
+.dual-listbox-actions {{ display: flex; flex-direction: column; gap: 0.35rem; }}
+.dual-listbox-actions button {{ min-width: 2.25rem; }}
 .dynamic-filters {{ padding-top: 0.5rem; border-top: 1px solid #ddd; }}
 .pagination-controls {{ display: inline-flex !important; align-items: center; justify-content: flex-end; margin: 0; white-space: nowrap; }}
 .pagination-controls form {{ display: inline-flex !important; align-items: center; gap: 0.4rem; margin: 0; white-space: nowrap; }}
@@ -526,6 +531,118 @@ button, input[type=submit] {{ cursor: pointer; }}
         renderLocalTimestamps();
         renderRelativeRefreshTimes();
     }}
+    function hasClass(node, className) {{
+        if (!node || !node.className) {{
+            return false;
+        }}
+        return (" " + String(node.className) + " ").indexOf(" " + className + " ") >= 0;
+    }}
+    window.moveDualListOptions = function(button, direction) {{
+        var root = button;
+        while (root && !hasClass(root, "dual-listbox")) {{
+            root = root.parentNode;
+        }}
+        if (!root) {{
+            return;
+        }}
+        var available = root.getElementsByClassName("dual-listbox-available")[0];
+        var selected = root.getElementsByClassName("dual-listbox-selected")[0];
+        var source = direction === "right" ? available : selected;
+        var target = direction === "right" ? selected : available;
+        if (!source || !target) {{
+            return;
+        }}
+        var moving = [];
+        for (var i = 0; i < source.options.length; i += 1) {{
+            if (source.options[i].selected) {{
+                moving.push(source.options[i]);
+            }}
+        }}
+        for (var j = 0; j < moving.length; j += 1) {{
+            moving[j].selected = false;
+            target.appendChild(moving[j]);
+        }}
+        sortSelectOptions(target);
+    }};
+    function optionNode(value) {{
+        var option = document.createElement("option");
+        option.value = value;
+        option.text = value;
+        return option;
+    }}
+    function optionValues(select) {{
+        var values = [];
+        if (!select) {{
+            return values;
+        }}
+        for (var i = 0; i < select.options.length; i += 1) {{
+            values.push(select.options[i].value);
+        }}
+        return values;
+    }}
+    function replaceOptions(select, values) {{
+        while (select.options.length) {{
+            select.remove(0);
+        }}
+        for (var i = 0; i < values.length; i += 1) {{
+            select.add(optionNode(values[i]));
+        }}
+    }}
+    function sortSelectOptions(select) {{
+        replaceOptions(select, optionValues(select).sort(function(left, right) {{
+            return left.localeCompare(right, undefined, {{sensitivity: "base"}});
+        }}));
+    }}
+    window.syncDualListExclusions = function(root, extraExcluded) {{
+        if (!root) {{
+            return;
+        }}
+        var allUsers = [];
+        var baseExcluded = [];
+        try {{
+            allUsers = JSON.parse(root.getAttribute("data-all-users") || "[]");
+            baseExcluded = JSON.parse(root.getAttribute("data-base-excluded") || "[]");
+        }} catch (err) {{
+            return;
+        }}
+        var excluded = {{}};
+        for (var i = 0; i < baseExcluded.length; i += 1) {{
+            excluded[baseExcluded[i]] = true;
+        }}
+        for (var j = 0; j < (extraExcluded || []).length; j += 1) {{
+            if (extraExcluded[j]) {{
+                excluded[extraExcluded[j]] = true;
+            }}
+        }}
+        var available = root.getElementsByClassName("dual-listbox-available")[0];
+        var selected = root.getElementsByClassName("dual-listbox-selected")[0];
+        var selectedValues = optionValues(selected).filter(function(value, index, values) {{
+            return !excluded[value] && values.indexOf(value) === index;
+        }});
+        var selectedMap = {{}};
+        for (var k = 0; k < selectedValues.length; k += 1) {{
+            selectedMap[selectedValues[k]] = true;
+        }}
+        var availableValues = allUsers.filter(function(value) {{
+            return !excluded[value] && !selectedMap[value];
+        }});
+        replaceOptions(available, availableValues);
+        replaceOptions(selected, selectedValues);
+    }};
+    window.syncTaggedUsersWithAssignee = function(select) {{
+        var form = select && select.form;
+        var root = form && form.getElementsByClassName("tagged-users-dual-list")[0];
+        window.syncDualListExclusions(root, [select.value]);
+    }};
+    window.prepareDualListSubmit = function(form) {{
+        var selectedLists = form.getElementsByClassName("dual-listbox-selected");
+        for (var i = 0; i < selectedLists.length; i += 1) {{
+            for (var j = 0; j < selectedLists[i].options.length; j += 1) {{
+                selectedLists[i].options[j].selected = true;
+            }}
+        }}
+        return true;
+    }};
     if (document.addEventListener) {{
         document.addEventListener("DOMContentLoaded", function() {{
             renderDynamicTimes();
@@ -762,12 +879,62 @@ def get_assignable_users() -> list[str]:
     )
 
 
+def get_taggable_users(exclude: Iterable[str] = ()) -> list[str]:
+    excluded = {username for username in exclude if username}
+    return [username for username in get_assignable_users() if username not in excluded]
+
+
 def valid_assignee(username: str) -> bool:
     if not username:
         return True
     if username in split_csv_names(ASSIGNEE_EXCLUDE):
         return False
     return user_exists(username) and user_in_group(username, ASSIGNEE_GROUP)
+
+
+def parse_tagged_usernames(value: str) -> list[str]:
+    usernames: list[str] = []
+    for username in re.split(r"[\s,]+", value or ""):
+        username = username.strip()
+        if username and username not in usernames:
+            usernames.append(username)
+    return usernames
+
+
+def tagged_user_values(form: cgi.FieldStorage, field_name: str) -> list[str]:
+    if field_name not in form:
+        return []
+    value = form[field_name]
+    if isinstance(value, list):
+        raw_values = [str(getattr(item, "value", item)) for item in value]
+    else:
+        raw_values = [str(getattr(value, "value", value))]
+    usernames: list[str] = []
+    for raw_value in raw_values:
+        for username in parse_tagged_usernames(raw_value):
+            if username not in usernames:
+                usernames.append(username)
+    return usernames
+
+
+def validate_tagged_usernames(usernames: Iterable[str]) -> list[str]:
+    valid: list[str] = []
+    taggable = set(get_taggable_users())
+    for username in usernames:
+        if username not in taggable:
+            raise AppError(f"Tagged user does not exist or is not taggable: {username}")
+        if username not in valid:
+            valid.append(username)
+    return valid
+
+
+def validate_tagged_usernames_for_issue_roles(usernames: Iterable[str], excluded_roles: Iterable[str]) -> list[str]:
+    excluded = {username for username in excluded_roles if username}
+    valid = validate_tagged_usernames(usernames)
+    for username in valid:
+        if username in excluded:
+            raise AppError(f"Tagged user cannot be the issue creator or assigned user: {username}")
+    return valid
 
 
 # ---------------------------------------------------------------------------
@@ -786,23 +953,53 @@ def fetch_issue(con: sqlite3.Connection, issue_id: int) -> Optional[sqlite3.Row]
     return con.execute("SELECT * FROM issues WHERE id = ?", (issue_id,)).fetchone()
 
 
-def can_view_issue(issue: sqlite3.Row, username: str) -> bool:
-    return is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username
+def fetch_tagged_usernames(con: sqlite3.Connection, issue_id: int) -> list[str]:
+    return [
+        row["tagged_username"]
+        for row in con.execute(
+            "SELECT tagged_username FROM issue_tagged_users WHERE issue_id = ? ORDER BY tagged_username",
+            (issue_id,),
+        ).fetchall()
+    ]
+
+
+def is_tagged_user(con: sqlite3.Connection, issue_id: int, username: str) -> bool:
+    if not username:
+        return False
+    row = con.execute(
+        "SELECT 1 FROM issue_tagged_users WHERE issue_id = ? AND tagged_username = ?",
+        (issue_id, username),
+    ).fetchone()
+    return row is not None
+
+
+def can_view_issue(issue: sqlite3.Row, username: str, con: Optional[sqlite3.Connection] = None) -> bool:
+    if is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username:
+        return True
+    return con is not None and is_tagged_user(con, int(issue["id"]), username)
 
 
 def can_owner_or_admin(issue: sqlite3.Row, username: str) -> bool:
     return is_admin(username) or issue["creator_username"] == username
 
 
+def can_owner_assigned_tagged_or_admin(issue: sqlite3.Row, username: str, con: sqlite3.Connection) -> bool:
+    return can_view_issue(issue, username, con)
+
+
 def can_owner_assigned_or_admin(issue: sqlite3.Row, username: str) -> bool:
-    return can_view_issue(issue, username)
+    return is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username
+
+
+def can_manage_tagged_users(issue: sqlite3.Row, username: str) -> bool:
+    return is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username
 
 
 def require_issue_access(con: sqlite3.Connection, issue_id: int, username: str) -> sqlite3.Row:
     issue = fetch_issue(con, issue_id)
     if issue is None:
         raise AppError("Issue not found", "404 Not Found")
-    if not can_view_issue(issue, username):
+    if not can_view_issue(issue, username, con):
         raise AppError("You are not authorized to view this issue", "403 Forbidden")
     return issue
 
@@ -923,6 +1120,20 @@ def unique_notification_recipients(values: Iterable[Any], exclude: str = "") -> 
             continue
         recipients.append(recipient)
     return recipients
+
+
+def issue_participant_recipients(con: sqlite3.Connection, issue: sqlite3.Row, exclude: str = "") -> list[str]:
+    return unique_notification_recipients(
+        [issue["creator_username"], issue["assigned_username"]] + fetch_tagged_usernames(con, int(issue["id"])),
+        exclude=exclude,
+    )
+
+
+def tagged_users_summary(usernames: Iterable[str], verb: str) -> str:
+    names = sorted({name for name in usernames if name})
+    if not names:
+        return f"{verb} no tagged users"
+    return f"{verb} tagged user{'s' if len(names) != 1 else ''}: {', '.join(names)}"
 
 
 def resolve_notification_triage_recipients(exclude: str = "") -> list[str]:
@@ -1150,6 +1361,33 @@ def assignee_option_tags(selected: Optional[str] = None) -> str:
     return option_tags(get_assignable_users(), selected, include_empty=True)
 
 
+def tagged_user_dual_list(name: str, selected_usernames: Iterable[str] = (), exclude: Iterable[str] = ()) -> str:
+    excluded = {username for username in exclude if username}
+    all_users = get_taggable_users()
+    taggable = set(all_users)
+    selected = [
+        username for username in selected_usernames
+        if username in taggable and username not in excluded
+    ]
+    selected_set = set(selected)
+    available = get_taggable_users(excluded | selected_set)
+    available_options = "\n".join(f'<option value="{h(username)}">{h(username)}</option>' for username in available)
+    selected_options = "\n".join(f'<option value="{h(username)}">{h(username)}</option>' for username in selected)
+    return f"""
+<div class="dual-listbox tagged-users-dual-list" data-all-users="{h(json.dumps(all_users))}" data-base-excluded="{h(json.dumps(sorted(excluded)))}">
+<div class="dual-listbox-column">
+<label>Available users<br><select class="dual-listbox-available" multiple size="8">{available_options}</select></label>
+</div>
+<div class="dual-listbox-actions">
+<button type="button" onclick="moveDualListOptions(this, 'right')" aria-label="Add selected tagged users">&gt;</button>
+<button type="button" onclick="moveDualListOptions(this, 'left')" aria-label="Remove selected tagged users">&lt;</button>
+</div>
+<div class="dual-listbox-column">
+<label>Tagged users<br><select class="dual-listbox-selected" name="{h(name)}" multiple size="8">{selected_options}</select></label>
+</div>
+</div>"""
+
+
 def render_markdown_help_link() -> str:
     return f'<p class="notice"><a href="{h(action_url("markdown_help"))}" target="_blank" rel="noopener noreferrer">Markdown help</a></p>'
 
@@ -1201,8 +1439,18 @@ def add_static_list_filters(
         conditions.append("i.status = ?")
         params.append(cfg["status"])
     if not admin:
-        conditions.append("(i.creator_username = ? OR i.assigned_username = ?)")
-        params.extend([username, username])
+        conditions.append(
+            """(
+                i.creator_username = ?
+                OR i.assigned_username = ?
+                OR EXISTS (
+                    SELECT 1 FROM issue_tagged_users tu_scope
+                    WHERE tu_scope.issue_id = i.id
+                      AND tu_scope.tagged_username = ?
+                )
+            )"""
+        )
+        params.extend([username, username, username])
 
     search = cfg.get("search", "")
     if search:
@@ -1585,21 +1833,24 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
             "SELECT id, filename, uploader_username, created_at FROM attachments WHERE issue_id = ? ORDER BY created_at ASC, id ASC",
             (issue_id,),
         ).fetchall()
+        tagged_users = fetch_tagged_usernames(con, issue_id)
 
     admin = is_admin(username)
     open_issue = issue["status"] == "open"
     owner_or_admin = can_owner_or_admin(issue, username)
     assigned = issue["assigned_username"] == username
-    can_comment_attach = can_owner_assigned_or_admin(issue, username)
+    can_manage_tags = can_manage_tagged_users(issue, username)
+    user_is_tagged = username in tagged_users
+    can_comment_attach = open_issue and (owner_or_admin or assigned or user_is_tagged)
 
     actions: list[str] = [render_action_button("list", "Back to list")]
     actions.append(render_action_button("history", "History", id=issue_id))
     if open_issue and owner_or_admin:
         actions.append(render_action_button("update", "Edit Title & Description", id=issue_id))
-    if open_issue and can_comment_attach:
+    if can_comment_attach:
         actions.append(render_action_button("comment", "Add comment", id=issue_id))
         actions.append(render_action_button("attach", "Add attachment", id=issue_id))
-    if open_issue and can_comment_attach:
+    if open_issue and (owner_or_admin or assigned):
         actions.append(render_action_button("close", "Close", id=issue_id))
     if open_issue and issue["creator_username"] == username:
         actions.append(render_action_button("cancel", "Cancel", id=issue_id))
@@ -1665,6 +1916,9 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     if issue["status"] in ISSUE_TERMINAL_STATUSES:
         rows.append(("Completed", timestamp_html(issue["completed_at"])))
 
+    tagged_display = ", ".join(tagged_users) if tagged_users else "none"
+    rows.append(("Tagged users", tagged_display))
+
     meta = "<table>" + "".join(
         f"<tr><th>{h(label)}</th><td>{value if label in {'Assignee','Priority','Percent complete','State','Due date','Created','Updated','Completed'} else h(value)}</td></tr>"
         for label, value in rows
@@ -1694,10 +1948,36 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         attach_html.append("<p>No attachments.</p>")
     attach_html.append("</div>")
 
+    tag_html = ["<div class='section'><h2>Tagged users</h2>"]
+    if can_manage_tags:
+        role_exclusions = [issue["creator_username"], issue["assigned_username"]]
+        tag_html.append(f"""
+<form method="post" action="issues.cgi" onsubmit="return prepareDualListSubmit(this)">
+<input type="hidden" name="action" value="tags_update">
+<input type="hidden" name="id" value="{h(issue_id)}">
+<input type="hidden" name="tagged_users_final_present" value="1">
+{tagged_user_dual_list("tagged_users_final", tagged_users, role_exclusions)}
+<p><input type="submit" value="Update tagged users"></p>
+</form>""")
+    elif user_is_tagged:
+        tag_html.append(f"""
+<form method="post" action="issues.cgi">
+<input type="hidden" name="action" value="tags_update">
+<input type="hidden" name="id" value="{h(issue_id)}">
+<input type="hidden" name="remove_tagged_users" value="{h(username)}">
+<p><input type="submit" value="Remove me from tagged users"></p>
+</form>""")
+    elif tagged_users:
+        tag_html.append("<p>" + h(", ".join(tagged_users)) + "</p>")
+    else:
+        tag_html.append("<p>No tagged users.</p>")
+    tag_html.append("</div>")
+
     body = f"""
 <div class="actions">{' '.join(actions)}</div>
 {meta}
 <div class="section"><h2>Description</h2><div class="markdown-body">{markdown_to_html(issue['description'])}</div></div>
+{''.join(tag_html)}
 {''.join(comments_html)}
 {''.join(attach_html)}
 """
@@ -1709,14 +1989,15 @@ def action_create(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_create_submit(form, username)
     body = f"""
-<form method="post" action="issues.cgi">
+<form method="post" action="issues.cgi" onsubmit="return prepareDualListSubmit(this)">
 <input type="hidden" name="action" value="create_submit">
 <p><label>Title<br><input type="text" name="title" size="80" required autofocus></label></p>
 <p><label>Description<br><textarea name="description" required></textarea></label></p>
 {render_markdown_help_link()}
 <p><label>Priority <select name="priority">{option_tags([p for p in PRIORITIES if p != 'any'], 'normal')}</select></label></p>
 <p><label>Due date <input type="date" name="due_date"></label> <span class="notice">Use YYYY-MM-DD.</span></p>
-<p><label>Assignee <select name="assigned_username">{assignee_option_tags('')}</select></label></p>
+<p><label>Assignee <select name="assigned_username" onchange="syncTaggedUsersWithAssignee(this)">{assignee_option_tags('')}</select></label></p>
+<div class="section"><h2>Tagged users</h2>{tagged_user_dual_list("tagged_users", [], [username])}</div>
 <p><input type="submit" value="Create issue"></p>
 </form>
 """
@@ -1741,6 +2022,10 @@ def action_create_submit(form: cgi.FieldStorage, username: str) -> None:
         validate_due_date(due_date)
     if assignee and not valid_assignee(assignee):
         raise AppError("Assignee does not exist or is not assignable")
+    tagged_users = validate_tagged_usernames_for_issue_roles(
+        tagged_user_values(form, "tagged_users"),
+        [username, assignee or ""],
+    )
 
     now = now_utc_sql()
     with db_connect() as con:
@@ -1752,9 +2037,16 @@ def action_create_submit(form: cgi.FieldStorage, username: str) -> None:
         )
         issue_id = int(cur.lastrowid)
         record_issue_history(con, issue_id, username, "created", "Created issue", now)
+        for tagged_username in tagged_users:
+            con.execute(
+                "INSERT INTO issue_tagged_users (issue_id, tagged_username, tagged_by_username, created_at) VALUES (?, ?, ?, ?)",
+                (issue_id, tagged_username, username, now),
+            )
+        if tagged_users:
+            record_issue_history(con, issue_id, username, "tagged_users_added", tagged_users_summary(tagged_users, "Added"), now)
         con.commit()
     create_event = "Issue assigned" if assignee else "Issue created"
-    notify_issue_event(issue_id, username, unique_notification_recipients([assignee], exclude=username), create_event)
+    notify_issue_event(issue_id, username, unique_notification_recipients([assignee] + tagged_users, exclude=username), create_event)
     redirect(action_url("view", id=issue_id))
 
 
@@ -1792,13 +2084,77 @@ def action_assign(form: cgi.FieldStorage, username: str) -> None:
     redirect(action_url("view", id=issue_id))
 
 
+def action_tags_update(form: cgi.FieldStorage, username: str) -> None:
+    issue_id = require_id(form)
+    raw_add_usernames = tagged_user_values(form, "add_tagged_users")
+    remove_usernames = tagged_user_values(form, "remove_tagged_users")
+    final_usernames_present = "tagged_users_final_present" in form
+    raw_final_usernames = tagged_user_values(form, "tagged_users_final")
+    with db_connect() as con:
+        issue = fetch_issue(con, issue_id)
+        if issue is None:
+            raise AppError("Issue not found", "404 Not Found")
+        current_tags = set(fetch_tagged_usernames(con, issue_id))
+        manager = can_manage_tagged_users(issue, username)
+        if not manager:
+            if final_usernames_present or raw_add_usernames or any(tagged_username != username for tagged_username in remove_usernames):
+                raise AppError("You are not authorized to update tagged users for this issue", "403 Forbidden")
+            if username not in current_tags:
+                raise AppError("You are not authorized to update tagged users for this issue", "403 Forbidden")
+            remove_usernames = [username]
+            add_usernames: list[str] = []
+        else:
+            role_exclusions = [issue["creator_username"], issue["assigned_username"]]
+            if final_usernames_present:
+                final_usernames = set(validate_tagged_usernames_for_issue_roles(raw_final_usernames, role_exclusions))
+                add_usernames = sorted(final_usernames - current_tags)
+                remove_usernames = sorted(current_tags - final_usernames)
+            else:
+                add_usernames = validate_tagged_usernames_for_issue_roles(raw_add_usernames, role_exclusions)
+
+        added = [tagged_username for tagged_username in add_usernames if tagged_username not in current_tags]
+        removed = [tagged_username for tagged_username in remove_usernames if tagged_username in current_tags]
+        if added or removed:
+            now = now_utc_sql()
+            for tagged_username in added:
+                con.execute(
+                    "INSERT INTO issue_tagged_users (issue_id, tagged_username, tagged_by_username, created_at) VALUES (?, ?, ?, ?)",
+                    (issue_id, tagged_username, username, now),
+                )
+            for tagged_username in removed:
+                con.execute(
+                    "DELETE FROM issue_tagged_users WHERE issue_id = ? AND tagged_username = ?",
+                    (issue_id, tagged_username),
+                )
+            con.execute("UPDATE issues SET updated_at = ? WHERE id = ?", (now, issue_id))
+            if added:
+                record_issue_history(con, issue_id, username, "tagged_users_added", tagged_users_summary(added, "Added"), now)
+            if removed:
+                record_issue_history(con, issue_id, username, "tagged_users_removed", tagged_users_summary(removed, "Removed"), now)
+            con.commit()
+        else:
+            con.commit()
+
+    if added:
+        recipients = unique_notification_recipients(added, exclude=username)
+        if recipients:
+            notify_issue_event(issue_id, username, recipients, "Tagged user added")
+    if removed:
+        recipients = unique_notification_recipients(removed, exclude=username)
+        if recipients:
+            notify_issue_event(issue_id, username, recipients, "Tagged user removed")
+    redirect(action_url("view", id=issue_id))
+
+
 def action_attach(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_attach_submit(form, username)
     issue_id = require_id(form)
     with db_connect() as con:
         issue = require_issue_access(con, issue_id, username)
-        if not can_owner_assigned_or_admin(issue, username):
+        if issue["status"] != "open":
+            raise AppError("Only open issues can have attachments added")
+        if not can_owner_assigned_tagged_or_admin(issue, username, con):
             raise AppError("You are not authorized to attach files to this issue", "403 Forbidden")
     max_upload_mb = MAX_UPLOAD_BYTES / (1024 * 1024)
     max_upload_display = f"{max_upload_mb:g} MB"
@@ -1837,7 +2193,9 @@ def action_attach_submit(form: cgi.FieldStorage, username: str) -> None:
         issue = fetch_issue(con, issue_id)
         if issue is None:
             raise AppError("Issue not found", "404 Not Found")
-        if not can_owner_assigned_or_admin(issue, username):
+        if issue["status"] != "open":
+            raise AppError("Only open issues can have attachments added")
+        if not can_owner_assigned_tagged_or_admin(issue, username, con):
             raise AppError("You are not authorized to attach files to this issue", "403 Forbidden")
         now = now_utc_sql()
         cur = con.execute(
@@ -1850,7 +2208,7 @@ def action_attach_submit(form: cgi.FieldStorage, username: str) -> None:
             con, issue_id, username, "attachment_added",
             f"Added attachment {history_summary_text(filename)}", now, attachment_id=attachment_id
         )
-        recipients = unique_notification_recipients([issue["creator_username"], issue["assigned_username"]], exclude=username)
+        recipients = issue_participant_recipients(con, issue, exclude=username)
         attachment_details = "\n".join([
             "Attachment:",
             f"Filename: {notification_body_text(filename)}",
@@ -1867,15 +2225,15 @@ def action_download(form: cgi.FieldStorage, username: str) -> None:
     attachment_id = require_id(form)
     with db_connect() as con:
         row = con.execute(
-            """SELECT a.*, i.creator_username, i.assigned_username
+            """SELECT a.*, i.creator_username, i.assigned_username, i.id AS issue_id
                FROM attachments a JOIN issues i ON i.id = a.issue_id
                WHERE a.id = ?""",
             (attachment_id,),
         ).fetchone()
         if row is None:
             raise AppError("Attachment not found", "404 Not Found")
-        pseudo_issue = {"creator_username": row["creator_username"], "assigned_username": row["assigned_username"]}
-        if not (is_admin(username) or pseudo_issue["creator_username"] == username or pseudo_issue["assigned_username"] == username):
+        pseudo_issue = {"id": row["issue_id"], "creator_username": row["creator_username"], "assigned_username": row["assigned_username"]}
+        if not can_view_issue(pseudo_issue, username, con):
             raise AppError("You are not authorized to download this attachment", "403 Forbidden")
         filename = normalize_filename(row["filename"])
         content = row["content"]
@@ -1902,7 +2260,7 @@ def action_comment(form: cgi.FieldStorage, username: str) -> None:
             raise AppError("Issue not found", "404 Not Found")
         # REGRESSION GUARD: Closed/canceled issue comment forms are admin-only even when the user can view the issue.
         if issue["status"] == "open":
-            allowed = can_owner_assigned_or_admin(issue, username)
+            allowed = can_owner_assigned_tagged_or_admin(issue, username, con)
         else:
             allowed = is_admin(username)
         if not allowed:
@@ -1930,7 +2288,7 @@ def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
         if issue is None:
             raise AppError("Issue not found", "404 Not Found")
         if issue["status"] == "open":
-            allowed = can_owner_assigned_or_admin(issue, username)
+            allowed = can_owner_assigned_tagged_or_admin(issue, username, con)
         else:
             allowed = is_admin(username)
         if not allowed:
@@ -1943,7 +2301,7 @@ def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
         comment_id = int(cur.lastrowid)
         con.execute("UPDATE issues SET updated_at = ? WHERE id = ?", (now, issue_id))
         record_issue_history(con, issue_id, username, "comment_added", "Added comment", now, comment_id=comment_id)
-        recipients = unique_notification_recipients([issue["creator_username"], issue["assigned_username"]], exclude=username)
+        recipients = issue_participant_recipients(con, issue, exclude=username)
         con.commit()
     comment_details = "Comment:\n" + notification_body_text(comment)
     notify_issue_event(issue_id, username, recipients, "Comment added", comment_details)
@@ -1999,7 +2357,7 @@ def action_update_submit(form: cgi.FieldStorage, username: str) -> None:
         else:
             con.execute("UPDATE issues SET title = ?, updated_at = ? WHERE id = ?", (title, now, issue_id))
         record_issue_history(con, issue_id, username, "updated", summary, now)
-        recipients = unique_notification_recipients([issue["creator_username"], issue["assigned_username"]], exclude=username)
+        recipients = issue_participant_recipients(con, issue, exclude=username)
         updated_description = description if description_supplied else issue["description"]
         update_details = "\n".join([
             "Updated title:",
@@ -2165,7 +2523,7 @@ def action_close_submit(form: cgi.FieldStorage, username: str) -> None:
         )
         comment_id = int(cur.lastrowid)
         record_issue_history(con, issue_id, username, "closed", "Closed issue with comment", now, comment_id=comment_id)
-        recipients = unique_notification_recipients([issue["creator_username"], issue["assigned_username"]], exclude=username)
+        recipients = issue_participant_recipients(con, issue, exclude=username)
         con.commit()
     notify_issue_event(issue_id, username, recipients, "Issue closed")
     redirect(action_url("view", id=issue_id), "302 Found")
@@ -2236,7 +2594,7 @@ def action_reopen(form: cgi.FieldStorage, username: str) -> None:
             if comment:
                 con.execute("INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)", (issue_id, username, comment, now))
             record_issue_history(con, issue_id, username, "reopened", "Reopened issue", now)
-            recipients = unique_notification_recipients([issue["creator_username"], issue["assigned_username"]], exclude=username)
+            recipients = issue_participant_recipients(con, issue, exclude=username)
             con.commit()
             notify_issue_event(issue_id, username, recipients, "Issue reopened")
     redirect(action_url("view", id=issue_id))
@@ -2623,6 +2981,7 @@ ACTION_MAP = {
     "history": action_history,
     "create_submit": action_create_submit,
     "assign": action_assign,
+    "tags_update": action_tags_update,
     "attach_submit": action_attach_submit,
     "download": action_download,
     "comment_submit": action_comment_submit,

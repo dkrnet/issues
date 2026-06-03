@@ -12,7 +12,7 @@ def test_issues_cgi_syntax_check_passes(syntax_check):
 def test_test_database_schema_matches_requirements(temp_db):
     with sqlite3.connect(temp_db) as con:
         tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
-        assert {"issues", "comments", "attachments", "issue_history"}.issubset(tables)
+        assert {"issues", "comments", "attachments", "issue_tagged_users", "issue_history"}.issubset(tables)
         issue_cols = [row[1] for row in con.execute("PRAGMA table_info(issues)")]
         assert issue_cols == [
             "id", "title", "description", "creator_username", "assigned_username",
@@ -23,6 +23,10 @@ def test_test_database_schema_matches_requirements(temp_db):
         assert history_cols == [
             "id", "issue_id", "actor_username", "action", "summary",
             "comment_id", "attachment_id", "created_at",
+        ]
+        tagged_cols = [row[1] for row in con.execute("PRAGMA table_info(issue_tagged_users)")]
+        assert tagged_cols == [
+            "id", "issue_id", "tagged_username", "tagged_by_username", "created_at",
         ]
 
 

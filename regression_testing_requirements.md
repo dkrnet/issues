@@ -220,6 +220,21 @@ CREATE TABLE attachments (
 );
 ```
 
+## Table: `issue_tagged_users`
+
+The test database shall include:
+
+```sql
+CREATE TABLE issue_tagged_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    issue_id INTEGER NOT NULL,
+    tagged_username TEXT NOT NULL,
+    tagged_by_username TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(issue_id, tagged_username)
+);
+```
+
 ## Table: `issue_history`
 
 The test database shall include:
@@ -717,7 +732,6 @@ The tests shall verify:
 - Search is limited to issues the acting user is authorized to see.
 - Search combines correctly with Status, Due, Has comments, Has attachments, Priority, Creator, Assignee, and State filters.
 - Dynamic dropdown options reflect the searched result set.
-- Pagination and auto-refresh preserve the active Search value.
 - Search does not create issue-history entries.
 - Search does not send notification email.
 - SQL-like search strings containing `%` or `_` are treated safely as literal search text.
@@ -802,15 +816,16 @@ The tests shall verify:
 - Assignment or reassignment sends notification to the newly assigned user when notifications are enabled.
 - Reassignment from one non-empty assignee to a different non-empty assignee also sends notification to the previously assigned user when notifications are enabled.
 - Reassignment notification excludes the acting user, including when the acting user is the previously assigned user.
-- Comment submission sends notification to the issue creator and assigned user when notifications are enabled, excluding the commenter.
+- Comment submission sends notification to the issue creator, assigned user, and tagged users when notifications are enabled, excluding the commenter.
 - Comment notification email bodies include the submitted comment text capped by `NOTIFICATION_BODY_MAX_CHARS`.
-- Attachment submission sends notification to the issue creator and assigned user when notifications are enabled, excluding the actor.
+- Attachment submission sends notification to the issue creator, assigned user, and tagged users when notifications are enabled, excluding the actor.
 - Attachment notification email bodies include attachment metadata such as filename, uploader, timestamp, and file size.
 - Attachment notification email bodies do not include attachment file content and do not attach the uploaded file.
-- Title/description update sends notification to the issue creator and assigned user when notifications are enabled, excluding the actor.
+- Title/description update sends notification to the issue creator, assigned user, and tagged users when notifications are enabled, excluding the actor.
 - Title/description update notification email bodies include the updated title and updated description capped by `NOTIFICATION_BODY_MAX_CHARS`.
-- Issue close sends notification to the issue creator and assigned user when notifications are enabled, excluding the actor.
-- Issue reopen sends notification to the issue creator and assigned user when notifications are enabled, excluding the actor.
+- Issue close sends notification to the issue creator, assigned user, and tagged users when notifications are enabled, excluding the actor.
+- Issue reopen sends notification to the issue creator, assigned user, and tagged users when notifications are enabled, excluding the actor.
+- Tagged-user add and remove actions send notification to affected tagged users when notifications are enabled, excluding the actor.
 - Due-date changes send notification to the assigned user when notifications are enabled, excluding the actor.
 - Notification-triggering actions on unassigned issues use `NOTIFICATION_TRIAGE_RECIPIENTS` when the ordinary recipient list is empty after actor exclusion.
 - The default notification triage recipient is `root`.
@@ -854,8 +869,9 @@ The tests shall verify:
 
 - The creator can view the issue.
 - The assigned user can view the issue.
+- A tagged user can view the issue.
 - A system administrator can view the issue.
-- An unrelated non-admin user cannot view the issue.
+- An unrelated non-admin user who is not tagged cannot view the issue.
 
 ## Issue View UI-Control Tests
 
@@ -879,6 +895,7 @@ The tests shall verify:
 - The due-date button is not clickable until the user changes the due-date field value.
 - The add-comment link displays only for users allowed to comment.
 - The add-attachment link displays only for users allowed to attach files.
+- Tagged-user management controls display according to tagged-user management permissions.
 - Issue-view action items use a consistent UI element style and do not mix links, buttons, and other control styles.
 
 # Create Issue Tests
@@ -893,6 +910,11 @@ The tests shall verify:
 - The priority selector is present.
 - The due-date field is present.
 - The assignee selector is present.
+- The tagged-users dual listbox is present.
+- The tagged-users dual listbox available-users box contains candidate users selected by the same rules as candidate assignees.
+- The tagged-users dual listbox does not contain users who are not valid candidate assignees.
+- The tagged-users dual listbox excludes the issue creator and selected assignee.
+- A username displayed in one tagged-users dual listbox box is not displayed in the other box.
 - The empty assignee option is present.
 - Assignable users appear in the assignee selector.
 - Excluded users do not appear in the assignee selector.
@@ -914,8 +936,42 @@ The tests shall verify:
 - Nonexistent assignee is rejected.
 - Existing but non-assignable assignee is rejected.
 - Excluded assignee is rejected.
+- A valid creation submission can add multiple tagged users.
+- Nonexistent tagged users are rejected.
+- Existing users who are not valid candidate assignees are rejected as tagged users.
+- The issue creator is rejected as a tagged user.
+- The assigned user is rejected as a tagged user.
+- Successful creation with tagged users records rows in `issue_tagged_users`.
+- Successful creation with tagged users records a compact tagged-user history entry.
 - Successful creation redirects to the issue view or issue list as implemented.
 - Created issue defaults are correct for status, state, percent complete, timestamps, and completion state.
+
+# Tagged User Tests
+
+The tests shall verify:
+
+- The test database schema includes `issue_tagged_users`.
+- A tagged user sees tagged issues in the issue list.
+- A tagged user can view a tagged issue.
+- A tagged user has read-only access to issue metadata, description, comments, attachments, and history.
+- A tagged user on an open issue can comment.
+- A tagged user on an open issue can attach files.
+- A tagged user can download attachments for an issue where they are tagged.
+- A tagged user can remove themself from tagged users.
+- A tagged user cannot add tagged users unless they are also creator, assignee, or system administrator.
+- A tagged user cannot remove other tagged users unless they are also creator, assignee, or system administrator.
+- Issue creators, assigned users, and system administrators can add tagged users.
+- Issue creators, assigned users, and system administrators manage tagged users with a dual listbox.
+- The dual listbox left box contains users who can be tagged and are not currently tagged.
+- The dual listbox right box contains users currently tagged on the issue.
+- The issue creator and assigned user are excluded from both tagged-user dual listbox boxes.
+- Moving users between tagged-user dual listbox boxes re-sorts the destination box alphabetically.
+- Issue creators, assigned users, and system administrators can remove tagged users.
+- Multiple tagged users can be added in one operation.
+- Multiple tagged users can be removed in one operation.
+- Tagged-user add and remove operations create compact issue-history entries.
+- Tagged-user add and remove notifications are sent to the affected tagged users when notifications are enabled, excluding the actor.
+- Tagged users receive the same issue-activity notification emails as issue creators.
 
 # Assignment Tests
 
@@ -944,8 +1000,8 @@ The tests shall verify:
 - The Markdown help link is present.
 - The Markdown help link opens in a new browser window or tab and includes a safe relationship attribute when required.
 - The submit button is present.
-- On open issues, the creator, assigned user, and system administrator can render the comment form.
-- On open issues, an unrelated non-admin user cannot render the comment form.
+- On open issues, the creator, assigned user, tagged user, and system administrator can render the comment form.
+- On open issues, an unrelated non-admin user who is not tagged cannot render the comment form.
 - On closed issues, only a system administrator can render the comment form.
 - On canceled issues, only a system administrator can render the comment form.
 
@@ -959,8 +1015,9 @@ The tests shall verify:
 - Markdown comment text remains raw in storage.
 - On open issues, the creator can comment.
 - On open issues, the assigned user can comment.
+- On open issues, a tagged user can comment.
 - On open issues, a system administrator can comment.
-- On open issues, an unrelated non-admin user cannot comment.
+- On open issues, an unrelated non-admin user who is not tagged cannot comment.
 - On closed issues, only a system administrator can comment.
 - On canceled issues, only a system administrator can comment.
 - Successful comment submission redirects back to the issue view.
@@ -987,8 +1044,9 @@ The tests shall verify:
 - Uploads larger than `MAX_UPLOAD_BYTES` are rejected.
 - The creator can attach a file.
 - The assigned user can attach a file.
+- A tagged user can attach a file.
 - A system administrator can attach a file.
-- An unrelated non-admin user cannot attach a file.
+- An unrelated non-admin user who is not tagged cannot attach a file.
 - The stored filename is normalized.
 - The stored filename is limited to `MAX_FILENAME_LEN`.
 - The stored binary content matches the uploaded content.
@@ -1002,8 +1060,9 @@ The tests shall verify:
 - Unknown attachment id returns a not-found error.
 - The issue creator can download the attachment.
 - The assigned user can download the attachment.
+- A tagged user can download the attachment.
 - A system administrator can download the attachment.
-- An unrelated non-admin user cannot download the attachment.
+- An unrelated non-admin user who is not tagged cannot download the attachment.
 - Download responses include a safe `Content-Disposition` filename.
 - Download responses include the stored file bytes.
 - Filenames are normalized or escaped before being returned in headers.

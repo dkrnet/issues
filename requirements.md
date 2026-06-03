@@ -319,6 +319,25 @@ Stores uploaded files associated with issues.
 
 ---
 
+## Table: `issue_tagged_users`
+
+Stores users tagged as issue participants.
+
+### Columns
+- `id` - unique tagged-user row identifier
+- `issue_id` - issue identifier that the tagged user belongs to
+- `tagged_username` - username of the tagged issue participant
+- `tagged_by_username` - username of the user who added the tag
+- `created_at` - creation timestamp for ordering and display
+
+### Schema behavior implied by the application
+- `issue_id` links each tagged user to a row in `issues`.
+- `tagged_username` stores a valid system username.
+- Each issue can tag a username at most once.
+- Tagged users are issue participants and are not assignees.
+
+---
+
 ## Table: `issue_history`
 
 Stores compact append-only history entries for material actions taken on issues.
@@ -350,8 +369,10 @@ Stores compact append-only history entries for material actions taken on issues.
 
 - One issue can have many comments.
 - One issue can have many attachments.
+- One issue can have many tagged users.
 - One issue can have many history entries.
 - Comments and attachments both belong to exactly one issue through `issue_id`.
+- Tagged users belong to exactly one issue through `issue_id`.
 - History entries belong to exactly one issue through `issue_id`.
 - History entries can optionally reference a comment through `comment_id`.
 - History entries can optionally reference an attachment through `attachment_id`.
@@ -487,6 +508,7 @@ To rebuild the application from scratch, the database must provide:
 - Search uses parameterized SQL and does not concatenate user input into SQL.
 - Search treats SQL LIKE wildcard characters in the search text as literal characters.
 - Search is applied only within the acting user's authorized issue visibility scope.
+- Tagged users see issues where they are tagged in their issue list.
 - Static filters, including Search, are applied before Dynamic filter group options are generated.
 - Dynamic filter options reflect the current Search value.
 - Search is applied before pagination.
@@ -566,7 +588,7 @@ To rebuild the application from scratch, the database must provide:
 
 **Conditional UI elements:**
 - The issue page displays only when the issue exists.
-- The acting user requires access to the issue: the acting user is the issue owner, the assigned user, or a system administrator.
+- The acting user requires access to the issue: the acting user is the issue creator, assigned user, tagged user, or a system administrator.
 - **Edit Title & Description** displays only when the issue is open and the acting user is the issue owner or a system administrator.
 - **Close** displays only when the issue is open and the acting user is the issue owner, the assigned user, or a system administrator.
 - **Cancel** displays only when the issue is open and the acting user is the issue owner.
@@ -581,13 +603,23 @@ To rebuild the application from scratch, the database must provide:
 - Percent complete and Due date values are saved when the user clicks the corresponding button.
 - The Percent complete button and Due date button are not clickable until the user changes the value of the corresponding field.
 - Issue view action items use a consistent UI element form; action items must not mix links, buttons, and other control styles.
-- The **Add** comment link displays only when the acting user is the issue owner, the assigned user, or a system administrator.
-- The **Add** attachment link displays only when the acting user is the issue owner, the assigned user, or a system administrator.
+- The **Add** comment link displays only when the issue is open and the acting user is the issue creator, assigned user, tagged user, or a system administrator.
+- The **Add** attachment link displays only when the issue is open and the acting user is the issue creator, assigned user, tagged user, or a system administrator.
+- Tagged-user management displays on the issue view page.
+- The issue view page uses a dual listbox for tagged-user management.
+- The dual listbox left box contains users who can be tagged and are not currently tagged.
+- The dual listbox right box contains users currently tagged on the issue.
+- Users displayed in one dual listbox box are not displayed in the other box.
+- The issue creator and assigned user are excluded from both tagged-user dual listbox boxes.
+- When users are moved between tagged-user dual listbox boxes, the destination box is re-sorted alphabetically.
+- Issue creators, assigned users, and system administrators can add and remove tagged users from the issue view page.
+- Tagged users can remove themselves from the issue view page.
+- Tagged users who are not also the issue creator, assigned user, or a system administrator cannot add tagged users or remove other tagged users.
 - Completed-at information displays only when the issue status is closed or canceled.
 - A history link or action displays for users who are authorized to view the issue.
 
 **Access control:**
-- Viewing requires that the acting user is the issue owner, assigned user, or a system administrator.
+- Viewing requires that the acting user is the issue creator, assigned user, tagged user, or a system administrator.
 - Editing links and inline editors are role- and state-restricted as listed above.
 
 ---
@@ -747,8 +779,40 @@ To rebuild the application from scratch, the database must provide:
 - Ordinary page views, issue-list filtering, pagination, auto-refresh, and attachment downloads are not recorded as issue history.
 
 **Access control:**
-- Viewing issue history requires the same authorization as viewing the issue: the acting user is the issue owner, the assigned user, or a system administrator.
+- Viewing issue history requires the same authorization as viewing the issue: the acting user is the issue creator, assigned user, tagged user, or a system administrator.
 - Unauthorized users must not be able to view issue history by calling the history action directly.
+
+---
+
+## Tagged User Management
+
+**Purpose:**
+- Add or remove issue participants who need to track or contribute to an issue without becoming the creator or assignee.
+
+**User-editable inputs:**
+- Usernames moved between the available-users and tagged-users boxes of a dual listbox
+
+**Conditions required:**
+- The issue exists.
+- Candidate tagged users are selected by the same rules as candidate assignees.
+- Tagged usernames must exist on the system and be valid candidate assignees.
+- Tagged usernames must not be the issue creator or assigned user.
+- Available users and tagged users are mutually exclusive in the dual listbox.
+- Multiple tagged users can be added in one operation.
+- Multiple tagged users can be removed in one operation.
+- Duplicate tagged-user entries for the same issue and username are ignored or prevented.
+
+**Access control:**
+- Issue creators, assigned users, and system administrators can add tagged users.
+- Issue creators, assigned users, and system administrators can remove tagged users.
+- Tagged users can remove themselves.
+- Tagged users cannot add tagged users unless they are also the issue creator, assigned user, or a system administrator.
+- Tagged users cannot remove other tagged users unless they are also the issue creator, assigned user, or a system administrator.
+
+**Conditional behavior:**
+- Adding tagged users records a compact issue-history entry.
+- Removing tagged users records a compact issue-history entry.
+- Self-removal by a tagged user records a compact issue-history entry.
 
 ---
 
@@ -771,10 +835,15 @@ To rebuild the application from scratch, the database must provide:
 - Priority
 - Due date
 - Assignee
+- Tagged users
 
 **Conditional UI elements:**
 - The assignee dropdown includes usernames from the assignable user list.
 - The empty assignee option always displays.
+- The create form includes a tagged-users dual listbox.
+- The create form tagged-users dual listbox excludes the issue creator.
+- The create form tagged-users dual listbox excludes the selected assignee when an assignee is selected.
+- Users displayed in one tagged-users dual listbox box are not displayed in the other box.
 
 **Access control:**
 - No explicit role restriction for rendering the form.
@@ -792,6 +861,7 @@ To rebuild the application from scratch, the database must provide:
 - Priority
 - Due date
 - Assignee
+- Tagged users
 
 **Conditions required:**
 - Title is required.
@@ -800,6 +870,9 @@ To rebuild the application from scratch, the database must provide:
 - If an assignee is supplied, the assignee must be allowed by the assignable-user rules derived from `ASSIGNEE_GROUP` and `ASSIGNEE_EXCLUDE`.
 - Existing system users who are not in the assignable-user list must be rejected as assignees.
 - Users excluded by `ASSIGNEE_EXCLUDE` must be rejected as assignees even if they belong to `ASSIGNEE_GROUP`.
+- If tagged users are supplied, each tagged username must be selected by the same rules as candidate assignees.
+- If tagged users are supplied, tagged usernames must not include the issue creator or assigned user.
+- Multiple tagged users can be added when the issue is created.
 
 **Access control:**
 - The acting user becomes the creator of the new issue.
@@ -853,7 +926,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue exists.
 
 **Access control:**
-- Only the issue owner, assigned user, or a system administrator can render the attachment form.
+- Only the issue creator, assigned user, tagged user, or a system administrator can render the attachment form for open issues.
 - Unauthorized users must not be able to render the attachment form by calling the form action directly.
 
 ---
@@ -873,7 +946,7 @@ To rebuild the application from scratch, the database must provide:
 - The stored filename is normalized and limited to `MAX_FILENAME_LEN`.
 
 **Access control:**
-- Only the issue owner, assigned user, or a system administrator can attach a file.
+- Only the issue creator, assigned user, tagged user, or a system administrator can attach a file to an open issue.
 
 **Conditional behavior:**
 - Uploads that exceed the maximum size are rejected.
@@ -890,7 +963,7 @@ To rebuild the application from scratch, the database must provide:
 - The attachment exists.
 
 **Access control:**
-- Only the issue owner, assigned user, or a system administrator can download the attachment.
+- Only the issue creator, assigned user, tagged user, or a system administrator can download the attachment.
 
 **Conditional behavior:**
 - A missing attachment id returns an error.
@@ -917,7 +990,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue exists.
 
 **Access control:**
-- If the issue is open, only the issue owner, assigned user, or a system administrator can render the comment form.
+- If the issue is open, only the issue creator, assigned user, tagged user, or a system administrator can render the comment form.
 - If the issue is not open, only a system administrator can render the comment form.
 - Unauthorized users must not be able to render the comment form by calling the form action directly.
 
@@ -936,7 +1009,7 @@ To rebuild the application from scratch, the database must provide:
 - Comment text is not empty after trimming.
 
 **Access control:**
-- If the issue is open, only the issue owner, assigned user, or a system administrator can comment.
+- If the issue is open, only the issue creator, assigned user, tagged user, or a system administrator can comment.
 - If the issue is not open, only a system administrator can comment.
 
 **Conditional behavior:**
@@ -1293,9 +1366,13 @@ To rebuild the application from scratch, the database must provide:
 - Failure to send notification email does not roll back or prevent the issue action that triggered the notification.
 - Notification email failures may be written to server-side error output or logs, but they do not produce a user-visible failure for an otherwise successful issue action.
 - Notification email is not sent for ordinary page views, issue list filtering, pagination, auto-refresh, history page views, or attachment downloads.
-- Initial notification triggers include issue creation, assignment or reassignment, comment submission, attachment submission, title/description update, issue close, issue reopen, and due-date changes.
+- Initial notification triggers include issue creation, assignment or reassignment, tagged-user add/remove, comment submission, attachment submission, title/description update, issue close, issue reopen, and due-date changes.
 - Assignment notification email is sent to the newly assigned user when the issue is assigned or reassigned and the newly assigned user is not the acting user.
 - When an issue is reassigned from one non-empty assignee to a different non-empty assignee, notification email is also sent to the previously assigned user unless the previously assigned user is the acting user.
+- When a tagged user is added, notification email is sent to the added tagged user unless the added tagged user is the acting user.
+- When a tagged user is removed, notification email is sent to the removed tagged user unless the removed tagged user is the acting user.
+- Tagged users receive the same issue-activity notification emails as issue creators.
+- Notification recipient lists deduplicate creator, assignee, tagged users, triage recipients, and previous assignees while preserving order.
 - The acting user who performed the triggering action is not sent a notification for that same action unless the implementation requirements are intentionally changed.
 - When a notification-triggering action on an unassigned issue would otherwise have no non-actor recipient, notification email is sent to the triage recipients configured by `NOTIFICATION_TRIAGE_RECIPIENTS`.
 - The default `NOTIFICATION_TRIAGE_RECIPIENTS` value is `root`.
@@ -1320,8 +1397,8 @@ To rebuild the application from scratch, the database must provide:
 - All Static and Dynamic filter group preferences, including Search, are saved and read in the same manner as the status filter.
 - The auto-refresh preference is saved and read in the same manner as list filter preferences.
 
-## Issue, Comment, Attachment, and History Storage
-- The application stores issues, comments, attachments, and issue history in the SQLite database identified by `DB_FILE`.
+## Issue, Comment, Tagged User, Attachment, and History Storage
+- The application stores issues, comments, tagged users, attachments, and issue history in the SQLite database identified by `DB_FILE`.
 - The issue list displays percent complete, comment counts, and attachment counts.
 - The issue list sorts issues by issue id in descending order.
 - The issue list supports filtering by status, priority, creator, assignee, state, due-date range, comment presence, and attachment presence.

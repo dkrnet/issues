@@ -201,7 +201,10 @@ def test_markdown_forms_render_required_fields_and_new_tab_help(app, patched_env
     if action == "create":
         for fragment in ('name="title"', 'name="description"', 'name="priority"', 'name="due_date"', 'name="assigned_username"'):
             assert fragment in lower
-        assert ">alice<" in html and ">bob<" in html and "vwboot" not in html
+        assignee_start = html.find('name="assigned_username"')
+        assignee_end = html.find("</select>", assignee_start)
+        assignee_html = html[assignee_start:assignee_end]
+        assert ">alice<" in assignee_html and ">bob<" in assignee_html and "vwboot" not in assignee_html
     elif action in {"comment", "close", "cancel"}:
         assert "<textarea" in lower
     elif action == "update":
