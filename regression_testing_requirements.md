@@ -590,6 +590,10 @@ The tests shall verify:
 - The favicon link is present.
 - The page title is present.
 - The current user is displayed.
+- User-facing username displays use the user's full name from the system account record when it is available.
+- User-facing username displays fall back to the login name when the system full name is unavailable or empty.
+- User-facing username displays fall back to the login name when the system full-name value contains a single word with no whitespace.
+- Full-name display does not change submitted form values, authorization checks, stored database values, per-user configuration filenames, or notification recipients.
 - Authenticated pages display the current user as bold text with a visually distinct adjacent `Logout` link in parentheses.
 - The logout link points to `LOGOUT_URL`.
 - The issue list uses an HTML table.
@@ -788,7 +792,8 @@ The tests shall verify:
 - Title-change summaries include only truncated before-and-after title values when title values are included.
 - Description-change summaries do not include full previous descriptions, full new descriptions, or full text diffs.
 - Description-change summaries include only compact information such as character counts, line counts, or that description content changed.
-- Issue history entries include issue id, acting username, action type, concise summary text, optional comment id, optional attachment id, and UTC creation timestamp.
+- Issue history entries include issue id, acting username, action type, concise summary text, optional comment id, optional attachment id, and UTC creation timestamp in storage.
+- Issue history display uses the acting user's display name.
 - Issue history entries are append-only during normal application operation.
 - Issue history entries are displayed newest first.
 - Issue history display uses pagination controls consistent with the issue list page pagination controls.
@@ -943,6 +948,8 @@ The tests shall verify:
 - The tagged-users dual listbox does not contain users who are not valid candidate assignees.
 - The tagged-users dual listbox excludes the issue creator and selected assignee.
 - A username displayed in one tagged-users dual listbox box is not displayed in the other box.
+- Tagged-user dual listbox entries are sorted by displayed user name.
+- Tagged-user dual listbox entries continue to display user-facing names after users are moved between boxes.
 - The empty assignee option is present.
 - Assignable users appear in the assignee selector.
 - Excluded users do not appear in the assignee selector.
@@ -1357,7 +1364,7 @@ The tests shall verify security-sensitive behavior.
 The tests shall verify:
 
 - Issue titles are escaped before display.
-- Usernames are escaped before display.
+- Display names and fallback usernames are escaped before display.
 - Filenames are escaped before display.
 - Comment text is rendered safely.
 - Description text is rendered safely.

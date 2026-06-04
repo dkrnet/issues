@@ -127,12 +127,14 @@ def test_tagged_users_can_view_list_comment_attach_and_download(app, patched_env
     assert "<p>bob</p>" not in creator_view
     assert "target.appendChild(moving[j])" in creator_view
     assert "sortSelectOptions(target)" in creator_view
-    assert "left.localeCompare(right" in creator_view
+    assert "labels[left] || left" in creator_view
+    assert "labels[right] || right" in creator_view
     assert 'function hasClass(node, className)' in creator_view
     assert 'while (root && !hasClass(root, "dual-listbox"))' in creator_view
     creator_dual = _dual_list_html(creator_view)
     assert 'value="bob">bob</option>' in creator_dual
     assert '<option value="admin">admin</option>' in creator_dual
+    assert 'data-user-labels' in creator_dual
     assert '<option value="alice">alice</option>' not in creator_dual
     assert '<option value="vwboot">vwboot</option>' not in creator_dual
     assert '<option value="mallory">mallory</option>' not in creator_dual

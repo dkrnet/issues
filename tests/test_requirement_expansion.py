@@ -11,6 +11,7 @@ formatting, per-user preferences, and issue lifecycle side effects.
 import datetime as dt
 import json
 import sqlite3
+import types
 
 import pytest
 
@@ -72,6 +73,71 @@ def test_issue_list_displays_percent_complete_column_values_counts_and_id_order(
     assert ">12<" in html or "12" in html
     assert "comments" in lower and "attachments" in lower
     assert html.find("Newer") < html.find("Older")
+
+
+def test_user_displays_prefer_full_name_and_keep_login_values(app, patched_environment, fake_users, seed_issue, seed_comment, seed_attachment, make_form, invoke_action, parse_headers, temp_db, monkeypatch):
+    full_names = {
+        "alice": "Alice Adams,Office",
+        "bob": "Bob Builder",
+        "admin": "Admin User",
+        "mallory": "Redmond, David",
+        "vwboot": "Service Account",
+    }
+
+    def getpwnam(name):
+        if name not in fake_users:
+            raise KeyError(name)
+        user = fake_users[name]
+        return types.SimpleNamespace(
+            pw_name=user.name,
+            pw_passwd="x",
+            pw_uid=user.uid,
+            pw_gid=user.gid,
+            pw_gecos=full_names.get(name, ""),
+            pw_dir=f"/home/{user.name}",
+            pw_shell="/bin/bash",
+        )
+
+    monkeypatch.setattr(app.pwd, "getpwnam", getpwnam, raising=False)
+
+    issue_id = seed_issue(title="Full names", creator_username="alice", assigned_username="bob", status="open")
+    seed_comment(issue_id, text="Readable commenter", user="bob")
+    seed_attachment(issue_id, filename="note.txt", user="alice")
+    with sqlite3.connect(temp_db) as con:
+        con.execute(
+            """INSERT INTO issue_history
+               (issue_id, actor_username, action, summary, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (issue_id, "alice", "created", "Created issue", "2026-01-01T12:00:00+00:00"),
+        )
+
+    list_html = text_body(parse_headers, invoke_action(app, "list", make_form(action="list", status="open", priority="any"), "alice"))
+    assert "Alice Adams" in list_html
+    assert "Bob Builder" in list_html
+
+    view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
+    assert "Welcome, <strong>Alice Adams</strong>" in view_html
+    assert "<td>Alice Adams</td>" in view_html
+    assert "Bob Builder" in view_html
+    assert 'value="bob" selected>Bob Builder</option>' in view_html
+    assert "Bob Builder at " in view_html
+    assert 'while (root && !hasClass(root, "dual-listbox"))' in view_html
+
+    dual_issue_id = seed_issue(title="Dual sort", creator_username="alice", assigned_username="", status="open")
+    dual_view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(dual_issue_id)), "alice"))
+    dual_start = dual_view_html.find('class="dual-listbox tagged-users-dual-list"')
+    dual_end = dual_view_html.find("</div>", dual_view_html.find("</select>", dual_start)) + len("</div>")
+    dual_html = dual_view_html[dual_start:dual_end]
+    assert dual_html.find('value="admin">Admin User</option>') < dual_html.find('value="bob">Bob Builder</option>')
+    assert "data-user-labels" in dual_html
+
+    history_html = text_body(parse_headers, invoke_action(app, "history", make_form(action="history", id=str(issue_id)), "alice"))
+    assert "<td>Alice Adams</td>" in history_html
+
+    fallback_id = seed_issue(title="Fallback name", creator_username="mallory", assigned_username="", status="open")
+    fallback_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(fallback_id)), "admin"))
+    assert "<td>mallory</td>" in fallback_html
+    assert "Redmond" not in fallback_html
 
 
 def test_issue_list_preferences_apply_status_priority_and_admin_creator_filter(app, patched_environment, seed_issue, write_config, invoke_action, make_form, parse_headers, temp_config_dir):

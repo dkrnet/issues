@@ -243,6 +243,8 @@ Authenticated pages display the current user and a logout link:
 Welcome, username (Logout)
 ```
 
+User-facing name displays prefer the user's full name from the system account record. If a full name is unavailable, empty, or only one word with no whitespace, the login name is displayed. Stored issue ownership, assignment, tagged-user membership, preferences, and notification recipients continue to use login names.
+
 The logout link points to the configured logout URL, currently:
 
 ```text

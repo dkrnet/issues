@@ -391,7 +391,7 @@ def render_page(title: str, body: str, current_user: Optional[str] = None) -> st
     user_value = (current_user or "").strip()
     if user_value:
         user_block = (
-            f'<div class="current-user">Welcome, <strong>{h(user_value)}</strong> '
+            f'<div class="current-user">Welcome, <strong>{h(display_username(user_value))}</strong> '
             f'<span class="logout-wrapper">(<a class="logout-link" href="{h(LOGOUT_URL)}">Logout</a>)</span></div>'
         )
     else:
@@ -605,10 +605,10 @@ button, input[type=submit] {{ cursor: pointer; }}
         }}
         sortSelectOptions(target);
     }};
-    function optionNode(value) {{
+    function optionNode(value, labels) {{
         var option = document.createElement("option");
         option.value = value;
-        option.text = value;
+        option.text = (labels && labels[value]) || value;
         return option;
     }}
     function optionValues(select) {{
@@ -621,17 +621,33 @@ button, input[type=submit] {{ cursor: pointer; }}
         }}
         return values;
     }}
+    function dualListLabels(select) {{
+        var root = select;
+        while (root && !hasClass(root, "dual-listbox")) {{
+            root = root.parentNode;
+        }}
+        if (!root) {{
+            return {{}};
+        }}
+        try {{
+            return JSON.parse(root.getAttribute("data-user-labels") || "{{}}");
+        }} catch (err) {{
+            return {{}};
+        }}
+    }}
     function replaceOptions(select, values) {{
+        var labels = dualListLabels(select);
         while (select.options.length) {{
             select.remove(0);
         }}
         for (var i = 0; i < values.length; i += 1) {{
-            select.add(optionNode(values[i]));
+            select.add(optionNode(values[i], labels));
         }}
     }}
     function sortSelectOptions(select) {{
+        var labels = dualListLabels(select);
         replaceOptions(select, optionValues(select).sort(function(left, right) {{
-            return left.localeCompare(right, undefined, {{sensitivity: "base"}});
+            return ((labels[left] || left).localeCompare((labels[right] || right), undefined, {{sensitivity: "base"}}));
         }}));
     }}
     window.syncDualListExclusions = function(root, extraExcluded) {{
@@ -884,6 +900,25 @@ def user_exists(username: str) -> bool:
         return True
     except KeyError:
         return False
+
+
+def display_username(username: Any) -> str:
+    login = "" if username is None else str(username).strip()
+    if not login:
+        return ""
+    try:
+        gecos = str(getattr(pwd.getpwnam(login), "pw_gecos", "") or "")
+    except KeyError:
+        return login
+    full_name = gecos.split(",", 1)[0].strip()
+    if not full_name or not re.search(r"\s", full_name):
+        return login
+    return full_name
+
+
+def display_usernames(usernames: Iterable[str]) -> str:
+    names = [display_username(username) for username in usernames if username]
+    return ", ".join(name for name in names if name)
 
 
 def get_current_user() -> str:
@@ -1251,7 +1286,7 @@ def tagged_users_summary(usernames: Iterable[str], verb: str) -> str:
     names = sorted({name for name in usernames if name})
     if not names:
         return f"{verb} no tagged users"
-    return f"{verb} tagged user{'s' if len(names) != 1 else ''}: {', '.join(names)}"
+    return f"{verb} tagged user{'s' if len(names) != 1 else ''}: {display_usernames(names)}"
 
 
 def resolve_notification_triage_recipients(exclude: str = "") -> list[str]:
@@ -1306,7 +1341,7 @@ def issue_notification_body(event: str, issue: sqlite3.Row, actor_username: str,
     lines = [
         f"Issue #{issue['id']}: {issue['title']}",
         f"Action: {event}",
-        f"By: {actor_username}",
+        f"By: {display_username(actor_username)}",
         f"Status: {issue['status']}",
         f"Priority: {issue['priority']}",
     ]
@@ -1348,7 +1383,7 @@ def notify_issue_event(issue_id: int, actor_username: str, recipients: list[str]
         body = issue_notification_body(event, issue, actor_username, details)
         submit_notification_email(recipients, subject, body)
         now = now_utc_sql()
-        recipients_text = ", ".join(recipients)
+        recipients_text = display_usernames(recipients)
         with db_connect() as con:
             record_issue_history(
                 con,
@@ -1504,18 +1539,34 @@ def save_user_config(username: str, cfg: dict[str, Any]) -> None:
 # Rendering helpers
 # ---------------------------------------------------------------------------
 
-def option_tags(options: Iterable[str], selected: Optional[str] = None, include_empty: bool = False) -> str:
+def option_tags(
+    options: Iterable[str],
+    selected: Optional[str] = None,
+    include_empty: bool = False,
+    labels: Optional[dict[str, str]] = None,
+) -> str:
+    labels = labels or {}
     tags: list[str] = []
     if include_empty:
         tags.append(f'<option value=""{" selected" if not selected else ""}></option>')
     for opt in options:
         sel = " selected" if opt == selected else ""
-        tags.append(f'<option value="{h(opt)}"{sel}>{h(opt)}</option>')
+        tags.append(f'<option value="{h(opt)}"{sel}>{h(labels.get(opt, opt))}</option>')
     return "\n".join(tags)
 
 
+def username_option_tags(options: Iterable[str], selected: Optional[str] = None, include_empty: bool = False) -> str:
+    values = list(options)
+    labels = {value: display_username(value) for value in values if value not in {"any", "unassigned"}}
+    return option_tags(values, selected, include_empty=include_empty, labels=labels)
+
+
+def sort_usernames_for_display(usernames: Iterable[str]) -> list[str]:
+    return sorted(usernames, key=lambda username: (display_username(username).lower(), username.lower()))
+
+
 def assignee_option_tags(selected: Optional[str] = None) -> str:
-    return option_tags(get_assignable_users(), selected, include_empty=True)
+    return username_option_tags(sort_usernames_for_display(get_assignable_users()), selected, include_empty=True)
 
 
 def tagged_user_dual_list(name: str, selected_usernames: Iterable[str] = (), exclude: Iterable[str] = ()) -> str:
@@ -1527,11 +1578,13 @@ def tagged_user_dual_list(name: str, selected_usernames: Iterable[str] = (), exc
         if username in taggable and username not in excluded
     ]
     selected_set = set(selected)
-    available = get_taggable_users(excluded | selected_set)
-    available_options = "\n".join(f'<option value="{h(username)}">{h(username)}</option>' for username in available)
-    selected_options = "\n".join(f'<option value="{h(username)}">{h(username)}</option>' for username in selected)
+    display_names = {username: display_username(username) for username in all_users}
+    available = sort_usernames_for_display(get_taggable_users(excluded | selected_set))
+    selected = sort_usernames_for_display(selected)
+    available_options = "\n".join(f'<option value="{h(username)}">{h(display_names.get(username, username))}</option>' for username in available)
+    selected_options = "\n".join(f'<option value="{h(username)}">{h(display_names.get(username, username))}</option>' for username in selected)
     return f"""
-<div class="dual-listbox tagged-users-dual-list" data-all-users="{h(json.dumps(all_users))}" data-base-excluded="{h(json.dumps(sorted(excluded)))}">
+<div class="dual-listbox tagged-users-dual-list" data-all-users="{h(json.dumps(all_users))}" data-user-labels="{h(json.dumps(display_names))}" data-base-excluded="{h(json.dumps(sorted(excluded)))}">
 <div class="dual-listbox-column">
 <label>Available users<br><select class="dual-listbox-available" multiple size="8">{available_options}</select></label>
 </div>
@@ -1950,7 +2003,7 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
 
     creator_filter = ""
     if admin:
-        creator_filter = f'<label>Creator <select name="creator" onchange="this.form.submit()">{option_tags(["any"] + creator_options, cfg["creator"])}</select></label>'
+        creator_filter = f'<label>Creator <select name="creator" onchange="this.form.submit()">{username_option_tags(["any"] + creator_options, cfg["creator"])}</select></label>'
 
     due_filter = ""
     if cfg["status"] in ("open", "any"):
@@ -1980,7 +2033,7 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
 <div class="dynamic-filters">
 <label>Priority <select name="priority" onchange="this.form.submit()">{option_tags(["any"] + priority_values, cfg['priority'])}</select></label>
 {creator_filter}
-<label>Assignee <select name="assignee" onchange="this.form.submit()">{option_tags(["any"] + assignee_values, cfg["assignee"])}</select></label>
+<label>Assignee <select name="assignee" onchange="this.form.submit()">{username_option_tags(["any"] + assignee_values, cfg["assignee"])}</select></label>
 <label>State <select name="state" onchange="this.form.submit()">{option_tags(["any"] + state_values, cfg["state"])}</select></label>
 </div>
 <noscript><input type="submit" value="Apply"></noscript>
@@ -2010,8 +2063,8 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
             f"<td>{h(r['status'])}</td>"
             f"<td>{h(r['due_date'])}</td>"
             f"<td>{h(r['priority'])}</td>"
-            f"<td>{h(r['creator_username'])}</td>"
-            f"<td>{h(r['assigned_username'])}</td>"
+            f"<td>{h(display_username(r['creator_username']))}</td>"
+            f"<td>{h(display_username(r['assigned_username']))}</td>"
             f"<td>{h(r['state'])}</td>"
             f"<td>{h(r['pct_complete'])}</td>"
             f"<td>{h(r['comment_count'])}</td>"
@@ -2066,7 +2119,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     if issue["status"] != "open" and admin:
         actions.append(render_action_button("reopen", "Re-open", "post", id=issue_id))
 
-    assign_cell = h(issue["assigned_username"])
+    assign_cell = h(display_username(issue["assigned_username"]))
     if open_issue and owner_or_admin:
         assign_cell = f"""
 <form method="post" action="issues.cgi" class="inline">
@@ -2112,7 +2165,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     rows = [
         ("ID", issue["id"]),
         ("Title", issue["title"]),
-        ("Creator", issue["creator_username"]),
+        ("Creator", display_username(issue["creator_username"])),
         ("Assignee", assign_cell),
         ("Priority", priority_cell),
         ("Percent complete", percent_cell),
@@ -2127,7 +2180,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     if issue["status"] in ISSUE_TERMINAL_STATUSES:
         rows.append(("Completed", timestamp_html(issue["completed_at"])))
 
-    tagged_display = ", ".join(tagged_users) if tagged_users else "none"
+    tagged_display = display_usernames(tagged_users) if tagged_users else "none"
     rows.append(("Tagged users", tagged_display))
 
     meta = "<table>" + "".join(
@@ -2142,7 +2195,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
             if c["time_worked_minutes"] is not None:
                 time_worked = f" (Time worked: {h(labeled_time_worked(c['time_worked_minutes']))})"
             comments_html.append(
-                f"<article><h3>{h(c['commenter_username'])} at {timestamp_html(c['created_at'])}{time_worked}</h3>"
+                f"<article><h3>{h(display_username(c['commenter_username']))} at {timestamp_html(c['created_at'])}{time_worked}</h3>"
                 f"<div class='markdown-body'>{markdown_to_html(c['comment_text'])}</div></article>"
             )
     else:
@@ -2155,7 +2208,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         for a in attachments:
             attach_html.append(
                 f"<tr><td><a href=\"{h(action_url('download', id=a['id']))}\">{h(a['filename'])}</a></td>"
-                f"<td>{h(a['uploader_username'])}</td><td>{timestamp_html(a['created_at'])}</td></tr>"
+                f"<td>{h(display_username(a['uploader_username']))}</td><td>{timestamp_html(a['created_at'])}</td></tr>"
             )
         attach_html.append("</table>")
     else:
@@ -2182,7 +2235,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
 <p><input type="submit" value="Remove me from tagged users"></p>
 </form>""")
     elif tagged_users:
-        tag_html.append("<p>" + h(", ".join(tagged_users)) + "</p>")
+        tag_html.append("<p>" + h(display_usernames(tagged_users)) + "</p>")
     else:
         tag_html.append("<p>No tagged users.</p>")
     tag_html.append("</div>")
@@ -2278,12 +2331,10 @@ def action_assign(form: cgi.FieldStorage, username: str) -> None:
         if not can_owner_or_admin(issue, username):
             raise AppError("You are not authorized to assign this issue", "403 Forbidden")
         now = now_utc_sql()
-        old_assignee = display_value(issue["assigned_username"])
-        new_assignee = display_value(assignee)
         con.execute("UPDATE issues SET assigned_username = ?, updated_at = ? WHERE id = ?", (assignee, now, issue_id))
         record_issue_history(
             con, issue_id, username, "assigned",
-            f"Changed assignee from {old_assignee} to {new_assignee}", now
+            history_user_change_summary("assignee", issue["assigned_username"], assignee), now
         )
         con.commit()
     notification_recipients = [assignee]
@@ -2937,6 +2988,13 @@ def history_change_summary(field: str, old_value: Any, new_value: Any) -> str:
     )
 
 
+def history_user_change_summary(field: str, old_value: Any, new_value: Any) -> str:
+    return (
+        f'Changed {field} from "{history_summary_text(display_username(old_value))}" '
+        f'to "{history_summary_text(display_username(new_value))}"'
+    )
+
+
 def action_history(form: cgi.FieldStorage, username: str) -> None:
     issue_id = require_id(form)
     with db_connect() as con:
@@ -2971,7 +3029,7 @@ def action_history(form: cgi.FieldStorage, username: str) -> None:
         table_rows.append(
             "<tr>"
             f"<td>{timestamp_html(row['created_at'])}</td>"
-            f"<td>{h(row['actor_username'])}</td>"
+            f"<td>{h(display_username(row['actor_username']))}</td>"
             f"<td>{h(row['action'])}</td>"
             f"<td>{history_display_summary_html(row)}</td>"
             "</tr>"
