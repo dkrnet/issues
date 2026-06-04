@@ -67,6 +67,7 @@ def create_schema(con: sqlite3.Connection) -> None:
             issue_id INTEGER NOT NULL,
             commenter_username TEXT NOT NULL,
             comment_text TEXT NOT NULL,
+            time_worked_minutes INTEGER,
             created_at TEXT NOT NULL
         );
 
@@ -155,13 +156,14 @@ def add_comment(
     actor: str,
     text: str,
     created_at: str,
+    time_worked_minutes: Optional[int] = None,
 ) -> int:
     cur = con.execute(
         """
-        INSERT INTO comments (issue_id, commenter_username, comment_text, created_at)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO comments (issue_id, commenter_username, comment_text, time_worked_minutes, created_at)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (issue_id, actor, text, created_at),
+        (issue_id, actor, text, time_worked_minutes, created_at),
     )
     comment_id = int(cur.lastrowid)
     add_history(con, issue_id, actor, "comment_added", "Added comment", created_at, comment_id=comment_id)

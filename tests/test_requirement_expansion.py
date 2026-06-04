@@ -298,6 +298,11 @@ def test_comment_form_and_submission_status_sensitive_permissions(app, patched_e
     for user in ("alice", "bob", "admin"):
         html = text_body(parse_headers, invoke_action(app, "comment", make_form(action="comment", id=str(open_id)), user))
         assert 'name="comment_text"' in html
+        assert 'name="time_worked"' in html
+        assert "Time worked (optional)" in html
+        assert 'size="24"' in html
+        assert 'placeholder="Examples: 30m, 1.5h, 1d"' in html
+        assert "onfocus=\"this.dataset.placeholder=this.placeholder;this.placeholder=''\"" in html
     assert_client_or_forbidden(parse_headers, invoke_action(app, "comment", make_form(action="comment", id=str(open_id)), "mallory"), "403")
     assert_client_or_forbidden(parse_headers, invoke_action(app, "comment", make_form(action="comment", id=str(closed_id)), "alice"), "403")
     assert 'name="comment_text"' in text_body(parse_headers, invoke_action(app, "comment", make_form(action="comment", id=str(closed_id)), "admin"))
@@ -306,6 +311,69 @@ def test_comment_form_and_submission_status_sensitive_permissions(app, patched_e
     output = invoke_action(app, "comment", make_form(action="comment", id=str(open_id), comment_text="**raw**"), "bob", method="POST")
     assert_redirect(parse_headers, output)
     assert fetch_comments(open_id)[0]["comment_text"] == "**raw**"
+
+
+def test_comment_time_worked_parsing_storage_invalid_preservation_and_display(app, patched_environment, seed_issue, seed_comment, make_form, invoke_action, parse_headers, fetch_comments):
+    issue_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
+
+    expected_minutes = {
+        "1": 60,
+        "1.25h": 75,
+        "90m": 90,
+        "1.4 min": 1,
+        "1 day": 480,
+        "23.99h": 1439,
+    }
+    for value, minutes in expected_minutes.items():
+        assert app.parse_time_worked_minutes(value) == minutes
+
+    for invalid in ("0", "0m", "24", "24h", "1440m", "1.234 h", "3d", "1w", "2 fortnights", "abc"):
+        with pytest.raises(ValueError):
+            app.parse_time_worked_minutes(invalid)
+
+    output = invoke_action(
+        app,
+        "comment",
+        make_form(action="comment", id=str(issue_id), comment_text="Worked on this.", time_worked="2.5 h"),
+        "alice",
+        method="POST",
+    )
+    assert_redirect(parse_headers, output)
+    saved = fetch_comments(issue_id)[0]
+    assert saved["comment_text"] == "Worked on this."
+    assert saved["time_worked_minutes"] == 150
+
+    invalid_output = invoke_action(
+        app,
+        "comment",
+        make_form(action="comment", id=str(issue_id), comment_text="Do not lose me.", time_worked="1.234 h"),
+        "alice",
+        method="POST",
+    )
+    status, _headers, body = parse_headers(invalid_output)
+    html = body.decode("utf-8", "replace")
+    assert "400" in status
+    assert "Do not lose me." in html
+    assert 'value="1.234 h"' in html
+    assert fetch_comments(issue_id)[0]["comment_text"] == "Worked on this."
+    assert len(fetch_comments(issue_id)) == 1
+
+    seed_comment(issue_id, text="Older work", user="bob", created_at="2026-01-01T11:00:00+00:00", time_worked_minutes=2490)
+    view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
+    assert view_html.find(">Status<") < view_html.find(">Total time worked<") < view_html.find(">Due date<")
+    assert "1 week, 0 days, 4 hours, 0 minutes" in view_html
+    assert "Time worked: 2 hours, 30 minutes" in view_html
+    assert "Time worked: 1 week, 0 days, 1 hour, 30 minutes" in view_html
+
+
+def test_issue_view_omits_total_time_worked_when_no_time_is_logged(app, patched_environment, seed_issue, seed_comment, make_form, invoke_action, parse_headers):
+    issue_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
+    seed_comment(issue_id, text="No time on this comment.", user="alice")
+
+    view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
+
+    assert ">Total time worked<" not in view_html
+    assert "0 minutes" not in view_html
 
 
 def test_attachment_form_submission_download_and_validation(app, patched_environment, seed_issue, make_form, invoke_action, parse_headers, fetch_attachments, monkeypatch):

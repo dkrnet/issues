@@ -19,6 +19,11 @@ def test_test_database_schema_matches_requirements(temp_db):
             "priority", "pct_complete", "state", "status", "due_date",
             "created_at", "updated_at", "completed_at",
         ]
+        comment_cols = [row[1] for row in con.execute("PRAGMA table_info(comments)")]
+        assert comment_cols == [
+            "id", "issue_id", "commenter_username", "comment_text",
+            "time_worked_minutes", "created_at",
+        ]
         history_cols = [row[1] for row in con.execute("PRAGMA table_info(issue_history)")]
         assert history_cols == [
             "id", "issue_id", "actor_username", "action", "summary",

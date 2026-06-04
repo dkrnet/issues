@@ -21,7 +21,7 @@ The application is not intended to replace enterprise issue-tracking systems for
 - Issue creation, editing, assignment, closing, canceling, and reopening
 - Compact issue history for material actions taken on issues
 - Optional local notification email through a sendmail-compatible command
-- Comments with Markdown rendering
+- Comments with Markdown rendering and optional time-worked entries
 - File attachments stored in the database
 - Issue-list search, filtering, sorting, pagination, and auto-refresh
 - Per-user saved list preferences
@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS comments (
     issue_id INTEGER NOT NULL,
     commenter_username TEXT NOT NULL,
     comment_text TEXT NOT NULL,
+    time_worked_minutes INTEGER,
     created_at TEXT NOT NULL
 );
 
@@ -200,6 +201,13 @@ CREATE INDEX IF NOT EXISTS idx_issue_tagged_users_issue_user
 CREATE INDEX IF NOT EXISTS idx_issue_history_issue_id_created_at
     ON issue_history(issue_id, created_at DESC, id DESC);
 SQL
+```
+
+To add time-worked support to an existing database created before that column existed:
+
+```bash
+sudo sqlite3 /var/lib/issues/issues.db \
+  "ALTER TABLE comments ADD COLUMN time_worked_minutes INTEGER;"
 ```
 
 After creating the database, ensure the Apache runtime user can read and write the database file, the database journal/WAL files created beside it, and the per-user configuration directory. The exact ownership and permissions depend on the site’s Apache configuration and security policy.
@@ -363,6 +371,8 @@ Notification failures are logged server-side and do not roll back or block the i
 ## Comments and Markdown
 
 Issue descriptions and comments support Markdown rendering.
+
+Comment forms include an optional **Time worked** field. Values default to hours when no unit is provided and may use minutes, hours, or days. Compact examples include `30m`, `1.5h`, and `1d`. Saved time-worked values appear in compact comment metadata, such as `Time worked: 2 hours, 30 minutes`, and the issue view displays the total time worked for the issue.
 
 The Markdown help page is available from Markdown-enabled forms. It includes examples for:
 
