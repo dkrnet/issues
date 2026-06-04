@@ -153,6 +153,10 @@ SEARCH_HISTORY_LIMIT - `10`
 - The favicon link points to the CGI favicon action and does not require an external favicon file.
 - Markdown help links open in a new browser window or tab.
 - Authenticated application pages display the current authenticated username in the page header.
+- User-facing username displays attempt to use the user's full name from the system account record.
+- If a user's full name is unavailable or empty, user-facing username displays use the login name.
+- If the system full-name value contains a single word with no whitespace, user-facing username displays use the login name.
+- Full-name display is presentation-only; stored usernames, submitted form values, authorization checks, configuration filenames, notification recipients, and database values continue to use login names.
 - Authenticated application page headers display the page title and current-user/logout display on the same row.
 - The current-user/logout display is right-justified on the page-title row.
 - When an authenticated username is displayed, a logout link appears adjacent to it.
@@ -160,7 +164,7 @@ SEARCH_HISTORY_LIMIT - `10`
 - The logout link text is `Logout`.
 - The current-user label is `Welcome`.
 - The current-user label includes a comma after `Welcome`, for example: `Welcome, redmondd (Logout)`.
-- The username is displayed as plain bold text and the logout link is displayed as an underlined link in parentheses, for example: `Welcome, redmondd (Logout)`.
+- The displayed user name is displayed as plain bold text and the logout link is displayed as an underlined link in parentheses, for example: `Welcome, David Redmond (Logout)`.
 - The logout link points to `LOGOUT_URL`.
 - The logout link is not displayed on unauthenticated public pages such as the login page, login failed page, logged out page, or authentication error page.
 - When `ISSUES_VERSION` is not empty, authenticated pages display a footer containing `Issues` followed by the version number.
@@ -613,7 +617,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue page displays only when the issue exists.
 - The issue metadata table displays total time worked between the Status and Due date rows only when the total time worked is greater than 0 minutes.
 - The issue total time worked is calculated from all saved time-worked entries for the issue across all actors.
-- Comment metadata displays saved time worked in compact form at the end of the metadata line, for example `alice at 2026-06-03 14:25:10 PDT (Time worked: 2 hours, 30 minutes)`.
+- Comment metadata displays saved time worked in compact form at the end of the metadata line, for example `Alice Adams at 2026-06-03 14:25:10 PDT (Time worked: 2 hours, 30 minutes)`.
 - The acting user requires access to the issue: the acting user is the issue creator, assigned user, tagged user, or a system administrator.
 - **Edit Title & Description** displays only when the issue is open and the acting user is the issue owner or a system administrator.
 - **Close** displays only when the issue is open and the acting user is the issue owner, the assigned user, or a system administrator.
@@ -637,7 +641,9 @@ To rebuild the application from scratch, the database must provide:
 - The dual listbox right box contains users currently tagged on the issue.
 - Users displayed in one dual listbox box are not displayed in the other box.
 - The issue creator and assigned user are excluded from both tagged-user dual listbox boxes.
-- When users are moved between tagged-user dual listbox boxes, the destination box is re-sorted alphabetically.
+- Tagged-user dual listbox boxes are sorted alphabetically by displayed user name.
+- When users are moved between tagged-user dual listbox boxes, the destination box is re-sorted alphabetically by displayed user name.
+- Tagged-user dual listbox entries continue to display user-facing names after users are moved between boxes.
 - Issue creators, assigned users, and system administrators can add and remove tagged users from the issue view page.
 - Tagged users can remove themselves from the issue view page.
 - Tagged users who are not also the issue creator, assigned user, or a system administrator cannot add tagged users or remove other tagged users.
@@ -787,7 +793,7 @@ To rebuild the application from scratch, the database must provide:
 - The page dropdown acts as both the current-page indicator and a direct navigation control for selecting a specific history page.
 - Previous, Next, and direct page navigation preserve the issue id.
 - Missing, invalid, non-numeric, or out-of-range history page values are handled safely by selecting a valid page.
-- Each history entry displays the action timestamp, acting username, action type, and a concise self-contained summary.
+- Each history entry displays the action timestamp, acting user's display name, action type, and a concise self-contained summary.
 - Field-change history summaries visually distinguish old and new values.
 - Old and new values in field-change history summaries are displayed as quoted bold text.
 - Underlining is not used for old and new values because underlined text can be confused with links.
