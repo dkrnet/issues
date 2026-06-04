@@ -201,6 +201,7 @@ CREATE TABLE comments (
     issue_id INTEGER NOT NULL,
     commenter_username TEXT NOT NULL,
     comment_text TEXT NOT NULL,
+    time_worked_minutes INTEGER,
     created_at TEXT NOT NULL
 );
 ```
@@ -875,7 +876,12 @@ The tests shall verify:
 - The description section is present.
 - The comments section is present.
 - The attachments section is present.
+- Total time worked displays between the Status and Due date metadata rows when total time worked is greater than 0 minutes.
+- Total time worked does not display when total time worked is 0 minutes.
+- Total time worked is calculated from all saved comment time-worked entries for the issue.
+- Total time worked uses labeled compact format and includes trailing zero-value units required by the selected display range.
 - Comments display in reverse chronological order.
+- Comment metadata displays saved time worked at the end of the metadata line using compact labeled format.
 - Attachments display in chronological order.
 - Completed-at information displays only when the issue is closed or canceled.
 - A non-open issue with no due date displays a blank due-date value rather than the open-issue placeholder.
@@ -1019,6 +1025,10 @@ The tests shall verify:
 
 - The comment form renders for appropriate issue ids.
 - The comment text area is present.
+- The optional time-worked input is present after or below the comment field.
+- The optional time-worked input displays compact example placeholder text using minimal unit specifiers.
+- The optional time-worked input is sized to fit the placeholder examples without being larger than necessary.
+- The optional time-worked input clears its placeholder hint when the field receives focus.
 - The Markdown help link is present.
 - The Markdown help link opens in a new browser window or tab and includes a safe relationship attribute when required.
 - The submit button is present.
@@ -1033,6 +1043,12 @@ The tests shall verify:
 
 - Empty comments are rejected.
 - Whitespace-only comments are rejected.
+- Valid time-worked values are normalized to integer minutes and stored with the comment.
+- Empty time-worked values are accepted and stored without a time-worked value.
+- Invalid time-worked values are rejected without saving the comment.
+- Invalid time-worked submissions return the comment form with the entered comment text and time-worked value preserved.
+- Time-worked parsing accepts supported minute, hour, and day units and defaults to hours when no unit is provided.
+- Time-worked parsing rejects normalized durations that are not greater than `0` minutes, normalized durations that are not less than `24` hours, values with more than two decimal places, and unknown units.
 - Raw comment text is stored in the database.
 - Markdown comment text remains raw in storage.
 - On open issues, the creator can comment.

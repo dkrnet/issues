@@ -291,11 +291,14 @@ Stores issue comments, including Markdown-formatted text.
 - `issue_id` - issue identifier that the comment belongs to
 - `commenter_username` - username of the user who created the comment
 - `comment_text` - raw comment text
+- `time_worked_minutes` - optional normalized time-worked value stored as integer minutes
 - `created_at` - creation timestamp for ordering and display
 
 ### Schema behavior implied by the application
 - `issue_id` links each comment to a row in `issues`.
 - Comments are displayed in reverse chronological order by `created_at`.
+- Time-worked values are optional and may be `NULL`.
+- Non-empty time-worked values are stored in normalized integer minutes.
 - The `created_at` column is required and must be populated when comments are inserted.
 
 ---
@@ -608,6 +611,9 @@ To rebuild the application from scratch, the database must provide:
 
 **Conditional UI elements:**
 - The issue page displays only when the issue exists.
+- The issue metadata table displays total time worked between the Status and Due date rows only when the total time worked is greater than 0 minutes.
+- The issue total time worked is calculated from all saved time-worked entries for the issue across all actors.
+- Comment metadata displays saved time worked in compact form at the end of the metadata line, for example `alice at 2026-06-03 14:25:10 PDT (Time worked: 2 hours, 30 minutes)`.
 - The acting user requires access to the issue: the acting user is the issue creator, assigned user, tagged user, or a system administrator.
 - **Edit Title & Description** displays only when the issue is open and the acting user is the issue owner or a system administrator.
 - **Close** displays only when the issue is open and the acting user is the issue owner, the assigned user, or a system administrator.
@@ -999,12 +1005,15 @@ To rebuild the application from scratch, the database must provide:
 
 **Static data on the page:**
 - Comment label
+- Time worked label identifying the field as optional
+- Time worked placeholder text showing compact examples with minimal unit specifiers
 - Markdown help link text
 - Markdown help link opens in a new browser window or tab
 - Submit button label
 
 **User-editable data:**
 - Comment text
+- Optional time worked
 
 **Conditions required:**
 - The issue exists.
@@ -1023,10 +1032,12 @@ To rebuild the application from scratch, the database must provide:
 
 **User-editable inputs:**
 - Comment text
+- Optional time worked
 
 **Conditions required:**
 - The issue exists.
 - Comment text is not empty after trimming.
+- If time worked is supplied, it must be valid according to the time-worked input requirements.
 
 **Access control:**
 - If the issue is open, only the issue creator, assigned user, tagged user, or a system administrator can comment.
@@ -1034,7 +1045,42 @@ To rebuild the application from scratch, the database must provide:
 
 **Conditional behavior:**
 - Empty comments are rejected.
+- Invalid time-worked values are rejected without saving the comment.
+- When a time-worked value is invalid, the comment form is returned with the entered comment text and time-worked value preserved so the user can correct the entry.
+- Successful comment submission with a valid time-worked value stores the comment and the normalized integer minute value.
+- Successful comment submission with an empty time-worked value stores the comment without a time-worked value.
 - Permission checks vary by issue status.
+
+---
+
+## Time Worked Input and Display
+
+**Input behavior:**
+- Time worked is optional on comment entries.
+- The time-worked field is displayed after or below the comment field.
+- The time-worked field displays compact example placeholder text using minimal unit specifiers, such as `Examples: 30m, 1.5h, 1d`.
+- The time-worked field is sized large enough to display the placeholder examples without being larger than necessary.
+- The time-worked placeholder text uses normal lighter placeholder styling and disappears when the field receives focus.
+- Non-empty time-worked entries require a normalized duration greater than `0` minutes and less than `24` hours.
+- Time-worked entries may include up to two decimal places to the right of the integer.
+- Time-worked entries may include a time unit after the number.
+- Time-worked entries may include whitespace between the number and the time unit.
+- Entries without a time unit default to hours.
+- Supported minute units are `m`, `min`, `mins`, `minute`, and `minutes`.
+- Supported hour units are `h`, `hour`, and `hours`.
+- Supported day units are `d`, `day`, and `days`.
+- Minute values entered with a non-zero decimal portion are rounded to the nearest minute.
+
+**Display behavior:**
+- Time worked is displayed using labeled compact format.
+- A day is equal to 8 hours.
+- A displayed week is equal to 40 hours or 5 days.
+- If the total time is less than 1 hour, display minutes only.
+- If the total time is at least 1 hour and less than 1 day, display hours and minutes.
+- If the total time is at least 1 day and less than 1 week, display days, hours, and minutes.
+- If the total time is at least 1 week, display weeks, days, hours, and minutes.
+- Larger zero-value units before the first non-zero unit are omitted.
+- Trailing zero-value units required by the selected display range are included, for example `3 hours, 0 minutes`.
 
 ---
 
@@ -1427,6 +1473,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue list supports pagination after filters are applied.
 - The issue view shows comments in reverse chronological order.
 - The issue view shows attachments in chronological order.
+- The issue view shows total time worked calculated from all comment time-worked entries only when the total is greater than 0 minutes.
 - The issue history page shows issue history entries in reverse chronological order.
 
 ## Embedded Favicon

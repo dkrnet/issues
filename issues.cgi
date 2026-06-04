@@ -125,6 +125,7 @@ from __future__ import annotations
 import base64
 import cgi
 import datetime as _dt
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from email.message import EmailMessage
 import grp
 import html
@@ -1110,6 +1111,64 @@ def timestamp_html(value: Any) -> str:
     )
 
 
+TIME_WORKED_UNITS = {
+    "m": Decimal("1"),
+    "min": Decimal("1"),
+    "mins": Decimal("1"),
+    "minute": Decimal("1"),
+    "minutes": Decimal("1"),
+    "h": Decimal("60"),
+    "hour": Decimal("60"),
+    "hours": Decimal("60"),
+    "d": Decimal("480"),
+    "day": Decimal("480"),
+    "days": Decimal("480"),
+}
+
+
+def parse_time_worked_minutes(value: str) -> Optional[int]:
+    raw = value.strip()
+    if not raw:
+        return None
+    match = re.fullmatch(r"([0-9]+(?:\.[0-9]{1,2})?)\s*([A-Za-z]+)?", raw)
+    if not match:
+        raise ValueError("Time worked must be a number with an optional m, h, or d time unit.")
+    try:
+        amount = Decimal(match.group(1))
+    except InvalidOperation as exc:
+        raise ValueError("Time worked must be a valid number.") from exc
+    unit = (match.group(2) or "h").lower()
+    if unit not in TIME_WORKED_UNITS:
+        raise ValueError("Time worked uses an unsupported time unit.")
+    minutes = amount * TIME_WORKED_UNITS[unit]
+    rounded_minutes = int(minutes.to_integral_value(rounding=ROUND_HALF_UP))
+    if rounded_minutes <= 0 or minutes >= 1440:
+        raise ValueError("Time worked must be greater than 0 minutes and less than 24 hours.")
+    return rounded_minutes
+
+
+def labeled_time_worked(minutes_value: Any) -> str:
+    try:
+        minutes = max(0, int(minutes_value or 0))
+    except (TypeError, ValueError):
+        minutes = 0
+
+    weeks, remainder = divmod(minutes, 2400)
+    days, remainder = divmod(remainder, 480)
+    hours, minutes_part = divmod(remainder, 60)
+
+    if minutes < 60:
+        parts = [("minute", minutes_part)]
+    elif minutes < 480:
+        parts = [("hour", hours), ("minute", minutes_part)]
+    elif minutes < 2400:
+        parts = [("day", days), ("hour", hours), ("minute", minutes_part)]
+    else:
+        parts = [("week", weeks), ("day", days), ("hour", hours), ("minute", minutes_part)]
+
+    return ", ".join(f"{count} {label if count == 1 else label + 's'}" for label, count in parts)
+
+
 def history_summary_text(value: Any, limit: int = 80) -> str:
     text = "" if value is None else str(value)
     text = " ".join(text.split())
@@ -1976,6 +2035,9 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         comments = con.execute(
             "SELECT * FROM comments WHERE issue_id = ? ORDER BY created_at DESC, id DESC", (issue_id,)
         ).fetchall()
+        total_time_worked = con.execute(
+            "SELECT COALESCE(SUM(time_worked_minutes), 0) FROM comments WHERE issue_id = ?", (issue_id,)
+        ).fetchone()[0]
         attachments = con.execute(
             "SELECT id, filename, uploader_username, created_at FROM attachments WHERE issue_id = ? ORDER BY created_at ASC, id ASC",
             (issue_id,),
@@ -2060,6 +2122,8 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         ("Created", timestamp_html(issue["created_at"])),
         ("Updated", timestamp_html(issue["updated_at"])),
     ]
+    if int(total_time_worked or 0) > 0:
+        rows.insert(8, ("Total time worked", labeled_time_worked(total_time_worked)))
     if issue["status"] in ISSUE_TERMINAL_STATUSES:
         rows.append(("Completed", timestamp_html(issue["completed_at"])))
 
@@ -2074,8 +2138,11 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     comments_html = ["<div class='section'><h2>Comments</h2>"]
     if comments:
         for c in comments:
+            time_worked = ""
+            if c["time_worked_minutes"] is not None:
+                time_worked = f" (Time worked: {h(labeled_time_worked(c['time_worked_minutes']))})"
             comments_html.append(
-                f"<article><h3>{h(c['commenter_username'])} at {timestamp_html(c['created_at'])}</h3>"
+                f"<article><h3>{h(c['commenter_username'])} at {timestamp_html(c['created_at'])}{time_worked}</h3>"
                 f"<div class='markdown-body'>{markdown_to_html(c['comment_text'])}</div></article>"
             )
     else:
@@ -2420,6 +2487,22 @@ def action_download(form: cgi.FieldStorage, username: str) -> None:
     raise ResponseSent()
 
 
+def render_comment_form(issue_id: int, username: str, comment_text: str = "", time_worked: str = "", error: str = "") -> str:
+    error_html = f'<p class="error">{h(error)}</p>' if error else ""
+    body = f"""
+{error_html}
+<form method="post" action="issues.cgi">
+<input type="hidden" name="action" value="comment_submit">
+<input type="hidden" name="id" value="{h(issue_id)}">
+<p><label>Comment<br><textarea name="comment_text" required autofocus>{h(comment_text)}</textarea></label></p>
+<p><label>Time worked (optional)<br><input type="text" name="time_worked" value="{h(time_worked)}" size="24" placeholder="Examples: 30m, 1.5h, 1d" onfocus="this.dataset.placeholder=this.placeholder;this.placeholder=''" onblur="if(!this.placeholder) this.placeholder=this.dataset.placeholder || 'Examples: 30m, 1.5h, 1d'"></label></p>
+{render_markdown_help_link()}
+<p><input type="submit" value="Add comment"></p>
+</form>
+"""
+    return render_page("Add Comment", body, username)
+
+
 def action_comment(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_comment_submit(form, username)
@@ -2435,17 +2518,8 @@ def action_comment(form: cgi.FieldStorage, username: str) -> None:
             allowed = is_admin(username)
         if not allowed:
             raise AppError("You are not authorized to comment on this issue", "403 Forbidden")
-    body = f"""
-<form method="post" action="issues.cgi">
-<input type="hidden" name="action" value="comment_submit">
-<input type="hidden" name="id" value="{h(issue_id)}">
-<p><label>Comment<br><textarea name="comment_text" required autofocus></textarea></label></p>
-{render_markdown_help_link()}
-<p><input type="submit" value="Add comment"></p>
-</form>
-"""
     send_headers()
-    print(render_page("Add Comment", body, username))
+    print(render_comment_form(issue_id, username))
 
 
 def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
@@ -2453,6 +2527,7 @@ def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
     comment = field_value(form, "comment_text").strip()
     if not comment:
         raise AppError("Comment text is required")
+    time_worked_raw = field_value(form, "time_worked", "")
     with db_connect() as con:
         issue = fetch_issue(con, issue_id)
         if issue is None:
@@ -2463,10 +2538,16 @@ def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
             allowed = is_admin(username)
         if not allowed:
             raise AppError("You are not authorized to comment on this issue", "403 Forbidden")
+        try:
+            time_worked_minutes = parse_time_worked_minutes(time_worked_raw)
+        except ValueError as exc:
+            send_headers(status="400 Bad Request")
+            print(render_comment_form(issue_id, username, comment, time_worked_raw, str(exc)))
+            raise ResponseSent()
         now = now_utc_sql()
         cur = con.execute(
-            "INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)",
-            (issue_id, username, comment, now),
+            "INSERT INTO comments (issue_id, commenter_username, comment_text, time_worked_minutes, created_at) VALUES (?, ?, ?, ?, ?)",
+            (issue_id, username, comment, time_worked_minutes, now),
         )
         comment_id = int(cur.lastrowid)
         con.execute("UPDATE issues SET updated_at = ? WHERE id = ?", (now, issue_id))

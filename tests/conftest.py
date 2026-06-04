@@ -105,6 +105,7 @@ def temp_db(tmp_path: pathlib.Path) -> pathlib.Path:
                 issue_id INTEGER NOT NULL,
                 commenter_username TEXT NOT NULL,
                 comment_text TEXT NOT NULL,
+                time_worked_minutes INTEGER,
                 created_at TEXT NOT NULL
             );
 
@@ -601,11 +602,11 @@ def seed_issue(temp_db: pathlib.Path):
 
 @pytest.fixture()
 def seed_comment(temp_db: pathlib.Path):
-    def _seed_comment(issue_id: int, text: str = "comment", user: str = "alice", created_at: str = "2026-01-01T12:00:00") -> int:
+    def _seed_comment(issue_id: int, text: str = "comment", user: str = "alice", created_at: str = "2026-01-01T12:00:00", time_worked_minutes: Optional[int] = None) -> int:
         with sqlite3.connect(temp_db) as con:
             cur = con.execute(
-                "INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)",
-                (issue_id, user, text, created_at),
+                "INSERT INTO comments (issue_id, commenter_username, comment_text, time_worked_minutes, created_at) VALUES (?, ?, ?, ?, ?)",
+                (issue_id, user, text, time_worked_minutes, created_at),
             )
             return int(cur.lastrowid)
     return _seed_comment
