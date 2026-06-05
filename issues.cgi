@@ -2954,7 +2954,9 @@ def action_cancel_submit(form: cgi.FieldStorage, username: str) -> None:
         )
         comment_id = int(cur.lastrowid)
         record_issue_history(con, issue_id, username, "canceled", "Canceled issue with comment", now, comment_id=comment_id)
+        recipients = issue_participant_recipients(con, issue, exclude=username)
         con.commit()
+    notify_issue_event(issue_id, username, recipients, "Issue canceled")
     redirect(action_url("view", id=issue_id), "302 Found")
 
 

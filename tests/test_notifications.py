@@ -78,7 +78,7 @@ def test_comment_notification_excludes_commenter_and_uses_creator_and_assignee(a
     assert email_rows[0]["summary"] == "Notification email sent to alice, bob"
 
 
-def test_due_close_reopen_notifications_use_required_recipients(app, patched_environment, monkeypatch, seed_issue, make_form, invoke_action, fetch_history):
+def test_due_close_cancel_reopen_notifications_use_required_recipients(app, patched_environment, monkeypatch, seed_issue, make_form, invoke_action, fetch_history):
     sent = []
 
     def fake_run(cmd, input=None, check=False):
@@ -92,15 +92,19 @@ def test_due_close_reopen_notifications_use_required_recipients(app, patched_env
     invoke_action(app, "set_due_date", make_form(action="set_due_date", id=str(issue_id), due_date="2026-06-30"), "alice", method="POST")
     invoke_action(app, "close_submit", make_form(action="close_submit", id=str(issue_id), closing_comment="Done"), "bob", method="POST")
     invoke_action(app, "reopen", make_form(action="reopen", id=str(issue_id), comment="Needs more work"), "admin", method="POST")
+    invoke_action(app, "cancel_submit", make_form(action="cancel_submit", id=str(issue_id), cancel_comment="Canceling"), "alice", method="POST")
 
-    assert len(sent) == 3
+    assert len(sent) == 4
     assert b"To: bob" in sent[0]
     assert b"To: alice" in sent[1]
     assert b"To: alice, bob" in sent[2]
+    assert b"To: bob" in sent[3]
+    assert b"Issue canceled" in sent[3]
     summaries = [row["summary"] for row in fetch_history(issue_id) if row["action"] == "email_sent"]
     assert "Notification email sent to bob" in summaries
     assert "Notification email sent to alice" in summaries
     assert "Notification email sent to alice, bob" in summaries
+    assert summaries.count("Notification email sent to bob") == 2
 
 
 def test_notification_failure_does_not_roll_back_or_return_internal_error(app, patched_environment, monkeypatch, seed_issue, make_form, invoke_action, parse_headers, fetch_issue, fetch_history):

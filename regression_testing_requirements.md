@@ -853,6 +853,9 @@ The tests shall verify:
 - Title/description update sends notification to the issue creator, assigned user, and contributing users when notifications are enabled, excluding the actor.
 - Title/description update notification email bodies include the updated title and updated description capped by `NOTIFICATION_BODY_MAX_CHARS`.
 - Issue close sends notification to the issue creator, assigned user, and contributing users when notifications are enabled, excluding the actor.
+- Issue close notification is sent as a single close notification and does not send a separate comment notification for the stored closing comment.
+- Issue cancel sends notification to the issue creator, assigned user, and contributing users when notifications are enabled, excluding the actor.
+- Issue cancel notification is sent as a single cancel notification and does not send a separate comment notification for the stored cancel comment.
 - Issue reopen sends notification to the issue creator, assigned user, and contributing users when notifications are enabled, excluding the actor.
 - Contributing-user add and remove actions send notification to affected contributing users when notifications are enabled, excluding the actor.
 - Due-date changes send notification to the assigned user when notifications are enabled, excluding the actor.
@@ -1244,6 +1247,7 @@ The tests shall verify:
 - Successful close updates `updated_at`.
 - Successful close stores a closing comment.
 - Successful close records a compact issue-history entry that references the stored closing comment by `comment_id`.
+- Successful close does not record a separate `comment_added` issue-history entry for the stored closing comment.
 - Successful close redirects back to the issue view.
 
 # Cancel Issue Tests
@@ -1281,6 +1285,7 @@ The tests shall verify:
 - Successful cancel updates `updated_at`.
 - Successful cancel stores a cancel comment.
 - Successful cancel records a compact issue-history entry that references the stored cancel comment by `comment_id`.
+- Successful cancel does not record a separate `comment_added` issue-history entry for the stored cancel comment.
 - Successful cancel redirects back to the issue view.
 
 # Reopen Issue Tests

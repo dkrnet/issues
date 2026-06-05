@@ -1312,6 +1312,8 @@ To rebuild the application from scratch, the database must provide:
 - Closing an issue also sets percent complete to `100` because the issue state becomes `complete`.
 - The close action records an issue-history entry that references the stored closing comment by `comment_id`.
 - The close issue-history summary identifies that the issue was closed with a comment without duplicating the full comment text in `issue_history`.
+- The close action must not record a separate `comment_added` history entry for the stored closing comment.
+- Notification email for the close action is sent as a single issue-close notification; the stored closing comment must not generate a separate comment notification email.
 
 ---
 
@@ -1388,6 +1390,8 @@ To rebuild the application from scratch, the database must provide:
 - The issue becomes canceled and completed when the action succeeds.
 - The cancel action records an issue-history entry that references the stored cancel comment by `comment_id`.
 - The cancel issue-history summary identifies that the issue was canceled with a comment without duplicating the full comment text in `issue_history`.
+- The cancel action must not record a separate `comment_added` history entry for the stored cancel comment.
+- Notification email for the cancel action is sent as a single issue-cancel notification; the stored cancel comment must not generate a separate comment notification email.
 
 ---
 

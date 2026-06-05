@@ -78,7 +78,7 @@ def test_admin_can_reopen_closed_issue(app, patched_environment, seed_issue, mak
     assert fetch_issue(issue_id)["status"] == "open"
 
 
-def test_issue_history_records_compact_entries_for_material_actions(app, patched_environment, make_form, invoke_action, parse_headers, fetch_history, fetch_issue, temp_db):
+def test_issue_history_records_compact_entries_for_material_actions(app, patched_environment, make_form, invoke_action, parse_headers, fetch_history, fetch_issue, fetch_comments, temp_db):
     create_form = make_form(
         action="create",
         title="History issue",
@@ -116,6 +116,14 @@ def test_issue_history_records_compact_entries_for_material_actions(app, patched
     assert "closed" in actions
     assert "reopened" in actions
     assert "canceled" in actions
+    assert actions.count("comment_added") == 0
+
+    comments_by_text = {row["comment_text"]: row["id"] for row in fetch_comments(issue_id)}
+    history_by_action = {row["action"]: row for row in fetch_history(issue_id)}
+    assert history_by_action["closed"]["comment_id"] == comments_by_text["closing"]
+    assert history_by_action["closed"]["summary"] == "Closed issue with comment"
+    assert history_by_action["canceled"]["comment_id"] == comments_by_text["cancel"]
+    assert history_by_action["canceled"]["summary"] == "Canceled issue with comment"
 
 
 def test_issue_history_comment_attachment_and_update_entries_are_compact(app, patched_environment, seed_issue, make_form, invoke_action, fetch_history, fetch_comments, fetch_attachments, temp_db):
