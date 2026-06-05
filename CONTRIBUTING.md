@@ -10,7 +10,8 @@ Before making a non-trivial change, read `requirements.md` and `regression_testi
 2. Preserve existing regression guard comments unless a requirement is intentionally changed.
 3. Update `requirements.md`, `regression_testing_requirements.md`, and `README.md` when behavior, deployment, configuration, or test expectations change.
 4. Commit local repository changes on a development branch, not directly on `main`.
-5. Run the syntax and regression checks before submitting a change:
+5. Before committing ordinary source changes, make sure `ISSUES_VERSION` in `issues.cgi` is set to the source default documented in `requirements.md`, currently `1.0.0`. Intentional build-output or release-stamping commits are the exception.
+6. Run the syntax and regression checks before submitting a change:
 
 ```bash
 python3 -m py_compile issues.cgi tests/*.py

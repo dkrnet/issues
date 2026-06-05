@@ -1498,6 +1498,10 @@ The tests shall verify:
 
 The tests shall not commit local repository changes directly on `main`.
 
+Repository workflow checks shall treat the source-default `ISSUES_VERSION` value and build-script-stamped `ISSUES_VERSION` values as separate states:
+- ordinary source commits are expected to leave `ISSUES_VERSION` at the source default documented in `requirements.md`;
+- intentional build-output or release-stamping commits may contain a generated `x.y.z-dev.N+GITID` or `x.y.z+GITID` value.
+
 ## Not Required Initially
 
 The regression suite is not required to test:

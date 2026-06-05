@@ -192,6 +192,7 @@ SEARCH_HISTORY_LIMIT - `10`
 - The build script updates the `ISSUES_VERSION` assignment in `issues.cgi`.
 - The build script preserves the existing base version number from `ISSUES_VERSION`.
 - The base version number must use traditional semantic version form `x.y.z`.
+- Build-script version suffixes are generated build metadata and do not replace the source default value documented under Variable Initial Values.
 - The build script defaults to development-build mode.
 - In development-build mode, the build script updates `ISSUES_VERSION` using the form `x.y.z-dev.N+GITID`.
 - In development-build mode, `N` is the number of commits after the matching `x.y.z` or `vx.y.z` release tag.
@@ -206,6 +207,8 @@ SEARCH_HISTORY_LIMIT - `10`
 
 - Changes committed to the local repository must be committed on a development branch.
 - Changes committed to the local repository must not be committed directly on `main`.
+- Immediately before committing ordinary source changes, the `ISSUES_VERSION` assignment in `issues.cgi` must match the source default value documented under Variable Initial Values, currently `1.0.0`.
+- The source-default `ISSUES_VERSION` commit requirement does not apply to intentional build-output or release-stamping commits whose purpose is to record a generated `x.y.z-dev.N+GITID` or `x.y.z+GITID` value.
 
 # Access and Authentication Requirements
 
