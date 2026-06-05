@@ -451,4 +451,3 @@ The tests use a temporary database, temporary configuration directory, and fake 
 
 `regression_testing_requirements.md` describes the expected regression test coverage.
 
-Maintenance and AI/LLM guidance exists in those documents, but this README focuses on application use and operation.

@@ -18,98 +18,20 @@
 # project requirements.
 #
 # STOP: Before making any non-trivial edit to this file, an AI/LLM assistant
-# must have the current requirements.md file in the current chat or working
-# context and must read it before changing code.
+# must have the current requirements.md, regression_testing_requirements.md,
+# and AGENTS.md files in the current chat or working context and must read them 
+# before changing code.
 #
-# If requirements.md has not been provided, the correct response is exactly:
+# If these files have not been provided, the correct response is exactly:
 #
-#   Please provide the current requirements.md before I modify this file.
+#   Please provide the following files before I modify this file
+#     - requirements.md
+#     - regression_testing_requirements.md
+#     - AGENTS.md
 #
-# Do not proceed with non-trivial code changes until requirements.md has been
+# Do not proceed with non-trivial code changes until these files have been
 # provided and reviewed, unless the user explicitly directs you to proceed
 # without it or to disregard this requirement.
-#
-# Non-trivial edits include, but are not limited to:
-# - adding, removing, or changing features
-# - changing CGI routing, request dispatch, form actions, or workflows
-# - changing authentication, authorization, admin checks, or permissions
-# - changing database schema assumptions, SQL writes, deletes, or migrations
-# - changing issue, comment, attachment, validation, or redirect behavior
-# - changing upload-size, filename-safety, HTML escaping, or Markdown rendering
-# - refactoring code in a way that could affect runtime behavior
-#
-# Trivial edits are limited to:
-# - typo fixes in comments
-# - formatting-only edits that do not affect behavior
-# - adding comments that do not change runtime behavior
-#
-# The requirements.md file is the authoritative functional specification for:
-# - CGI routing behavior
-# - database schema expectations
-# - access-control rules
-# - user/group lookup behavior
-# - form and action behavior
-# - validation rules
-# - attachment handling
-# - Markdown rendering
-# - error and redirect behavior
-#
-# AI/LLM assistants must avoid removing, simplifying, or rewriting existing
-# behavior unless the requested change explicitly requires it. Treat access
-# control, validation, HTML escaping, Markdown rendering, filename handling,
-# attachment handling, SQL query construction, redirect behavior, and database
-# update semantics as security-sensitive and regression-sensitive. Do not
-# simplify or bypass these areas without explicit user approval.
-#
-# Preserve raw Markdown in storage and render it only for display. Preserve
-# parameterized SQL. Preserve per-action authorization checks even when the UI
-# already hides unavailable links or forms, because callers can invoke CGI
-# actions directly with crafted requests.
-#
-# Bug-fix preservation rule:
-# When fixing a bug, add a short nearby comment explaining the bug that was fixed
-# and the reason for the fix. These comments are intentional regression guards.
-# Do not remove bug-fix comments unless the user explicitly instructs you to
-# remove them, or unless the associated code is being replaced by an equivalent
-# or better fix and the preservation comment is updated accordingly.
-#
-# Use consistent markers for bug-fix and regression-protection comments:
-# - BUGFIX:
-# - REGRESSION GUARD:
-# - REQUIREMENTS:
-#
-# Patch output rule:
-# Unless the user explicitly directs otherwise, AI/LLM assistants modifying this
-# file must produce valid unified diffs only. Do not include explanatory prose
-# before or after the diff, and do not wrap the diff in Markdown fences.
-#
-# Requirements for AI/LLM patch output:
-# - Use standard unified diff format.
-# - Include --- and +++ file headers.
-# - Include @@ hunk headers.
-# - Include at least 3 lines of unchanged context around each change.
-# - Do not include Markdown fences.
-# - Do not include explanations.
-# - Do not abbreviate unchanged code with "...".
-# - The output must be directly usable with git apply or patch -p1.
-#
-# Maintenance checklist for AI/LLM edits:
-# 1. Confirm requirements.md is present before non-trivial changes.
-# 2. Read requirements.md before non-trivial changes.
-# 3. Stop and ask for requirements.md if it is missing.
-# 4. Preserve existing features and access-control behavior.
-# 5. Preserve existing bug-fix comments.
-# 6. Add regression-guard comments near new bug fixes.
-# 7. Prefer minimal, reviewable changes.
-# 8. Produce valid unified diffs unless explicitly directed otherwise.
-# 9. Do not remove or weaken authentication, authorization, validation,
-#    escaping, upload-size, filename-safety, or parameterized-SQL protections.
-# 10. Run or recommend syntax/regression tests after edits.
-#
-# AI/LLM CHECKPOINT FOR THIS FILE:
-# Any new action, route, POST handler, destructive operation, permission change,
-# database write/delete, or issue/comment/attachment behavior change is
-# non-trivial. Stop and request requirements.md first if it is missing.
 #
 # =============================================================================
 """
@@ -148,7 +70,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 DB_FILE = "/var/lib/issues/issues.db"
 DEFAULT_CLOSING_COMMENT = "no comment provided"
-ISSUES_VERSION = "1.0.0"
+ISSUES_VERSION = "1.0.0-dev.11+0b098dd"
 MAX_UPLOAD_BYTES = 10485760
 ASSIGNEE_GROUP = "users"
 ASSIGNEE_EXCLUDE = ""

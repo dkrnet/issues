@@ -1,6 +1,6 @@
 # Regression Testing Requirements
 
-**Issues Regression Tests** is the regression test suite for the `issues.cgi` CGI-based issue tracker application. The purpose of the test suite is to detect unintended feature removal, accidental permission changes, validation regressions, database behavior changes, UI-control regressions, and security-sensitive behavior changes during future maintenance, including maintenance performed by AI/LLM assistants.
+**Issues Regression Tests** is the regression test suite for the `issues.cgi` CGI-based issue tracker application. The purpose of the test suite is to detect unintended feature removal, accidental permission changes, validation regressions, database behavior changes, UI-control regressions, and security-sensitive behavior changes during future maintenance.
 
 # Implementation Language Requirement
 
@@ -21,7 +21,7 @@
 - Verify that validation failures are rejected safely.
 - Verify that attachment handling remains safe.
 - Verify that Markdown storage and rendering behavior remains safe.
-- Verify that LLM or human edits do not accidentally remove existing functionality.
+- Verify that future edits do not accidentally remove existing functionality.
 - Verify that the embedded favicon remains available without an external file.
 - Verify that compact issue history is recorded and displayed without unnecessary database growth or unnecessary list-page processing.
 - Verify that optional notification email is submitted through the local mail system only when enabled and that notification attempts are recorded compactly in issue history.
@@ -347,7 +347,7 @@ The tests shall verify:
 
 # Expected Shared Fixture Names
 
-The regression suite should use clear, stable pytest fixture and helper names so another maintainer or AI/LLM session can recreate, extend, or navigate the suite consistently.
+The regression suite should use clear, stable pytest fixture and helper names so future maintainers can recreate, extend, or navigate the suite consistently.
 
 Recommended fixture and helper names include:
 
@@ -1589,35 +1589,6 @@ Examples:
 - `test_unrelated_user_cannot_call_close_directly`
 - `test_raw_markdown_is_stored_but_rendered_safely`
 - `test_attachment_download_rejects_unauthorized_user`
-
-# AI/LLM Maintenance Requirements for Tests
-
-AI/LLM assistants modifying the regression tests shall:
-
-- Read the current application `requirements.md` before making non-trivial changes, unless explicitly told not to.
-- Preserve existing regression tests unless the user explicitly requests removal or the tested behavior has intentionally changed.
-- Add or update tests when changing application behavior.
-- Add regression tests for bug fixes.
-- Avoid weakening assertions merely to make tests pass.
-- Avoid deleting tests for security-sensitive behavior unless explicitly instructed.
-- Use deterministic temporary files, temporary databases, and fake users/groups.
-- Avoid dependencies on the production host environment.
-
-# Patch Output Requirements for AI/LLM Test Changes
-
-Unless the user explicitly directs otherwise, AI/LLM assistants modifying regression tests shall produce valid unified diffs only.
-
-Requirements:
-
-- Use standard unified diff format.
-- Include `---` and `+++` file headers.
-- Include `@@` hunk headers.
-- Include at least 3 lines of unchanged context around each change.
-- Do not include Markdown fences.
-- Do not include explanations inside patch output.
-- Do not abbreviate unchanged code with `...`.
-- The output must be directly usable with `git apply` or `patch -p1`.
-
 
 # Minimum First-Pass Scope
 

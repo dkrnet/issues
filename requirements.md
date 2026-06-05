@@ -21,16 +21,6 @@
 - The top-level `LICENSE` file must contain the official, unmodified GNU Affero General Public License version 3 text.
 - The official GNU license text itself must not be edited to remove generic explanatory language about later versions; project-owned source notices control whether this project permits later license versions.
 
-# AI/LLM Maintenance Requirements
-
-- AI/LLM assistants modifying this application must read the current `requirements.md` file before making non-trivial changes, unless the user explicitly directs them to proceed without it or to disregard this requirement.
-- The requirements document is the authoritative functional specification for routing, schema expectations, access control, validation, form behavior, attachment handling, Markdown rendering, error handling, and redirect behavior.
-- Existing behavior, features, access-control checks, validation rules, escaping behavior, filename handling, and database-query behavior must not be removed, simplified, or rewritten unless the requested change explicitly requires it.
-- Bug fixes must be documented with nearby `BUGFIX:` or `REGRESSION GUARD:` comments explaining the regression or defect the code prevents.
-- Existing bug-fix and regression-guard comments must not be removed unless the user explicitly directs their removal, or unless the associated code is replaced by an equivalent or better fix and the preservation comment is updated accordingly.
-- Unless the user explicitly directs otherwise, AI/LLM assistants must produce valid unified diffs only when proposing modifications.
-- Patch output must use standard unified diff format, include `---` and `+++` file headers, include `@@` hunk headers, include at least 3 lines of unchanged context around each change, and be directly usable with `git apply` or `patch -p1`.
-- Patch output must not include Markdown fences, explanations, or abbreviated unchanged code such as `...`.
 
 # Global Variables
 
