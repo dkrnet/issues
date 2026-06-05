@@ -159,6 +159,7 @@ def test_mutating_forms_include_safe_cancel_control(app, patched_environment, se
 
     html = _html(parse_headers, invoke_action(app, action, form, "alice"))
 
+    assert 'class="form-actions"' in html
     assert 'class="button-link cancel-button"' in html
     assert 'href="/issues.cgi?action=list"' in html
     assert 'name="return_to" value="/issues.cgi?action=list"' in html

@@ -415,7 +415,11 @@ body {{ font-family: Arial, sans-serif; margin: 1.5rem; line-height: 1.4; }}
 .css-header {{ position: relative; height: 35px; margin: -0.75rem -0.75rem 1rem -0.75rem; background: linear-gradient(90deg, #E6E9EF 0%, rgba(230, 233, 239, 0) 100%); }}
 .css-header-title {{ position: relative; z-index: 1; height: 35px; display: flex; align-items: center; padding-left: 1rem; font-size: 1.1rem; font-weight: bold; color: #BFC5D0; }}
 .header {{ display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }}
-.header h1 {{ margin: 0; }}
+.header h1 {{ margin: 0; font-size: 2rem; line-height: 1.2; }}
+h2, .section-heading {{ margin: 1.25rem 0 0.6rem; font-size: 1.35rem; line-height: 1.25; }}
+h3 {{ margin: 1rem 0 0.45rem; font-size: 1.05rem; line-height: 1.3; }}
+.metadata-text, .comment-meta, .current-user, .notice, .last-refreshed {{ color: #555; }}
+.comment-meta {{ margin: 1rem 0 0.35rem; font-size: 0.9rem; line-height: 1.35; font-weight: 600; }}
 .current-user {{ color: #555; text-align: right; white-space: nowrap; }}
 .current-user strong {{ font-weight: bold; color: #333; }}
 .logout-wrapper {{ margin-left: 0.4em; }}
@@ -424,12 +428,14 @@ body {{ font-family: Arial, sans-serif; margin: 1.5rem; line-height: 1.4; }}
 table {{ border-collapse: collapse; width: 100%; margin: 1rem 0; }}
 th, td {{ border: 1px solid #ccc; padding: 0.4rem 0.55rem; vertical-align: top; }}
 th {{ background: #eee; text-align: left; }}
-form.inline {{ display: inline; }}
+form.inline {{ display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; }}
+button, input, select, textarea {{ font: inherit; }}
 input[type=text], input[type=date], input[type=number], textarea, select {{ max-width: 100%; }}
 textarea {{ width: 100%; min-height: 12rem; }}
-.actions form {{ display: inline; margin-right: 0.65rem; }}
+.actions {{ display: flex; align-items: center; gap: 0.65rem; flex-wrap: wrap; margin: 0.5rem 0 1rem; }}
+.actions form {{ margin: 0; }}
 .static-filters, .dynamic-filters {{ margin: 0.5rem 0; }}
-.static-filters label, .dynamic-filters label {{ margin-right: 0.75rem; }}
+.static-filters label, .dynamic-filters label {{ margin-right: 0; }}
 .static-filter-row {{ display: flex; align-items: center; justify-content: space-between; gap: 1em; flex-wrap: wrap; }}
 .static-filter-left {{ display: flex; align-items: center; gap: 0.75em; flex-wrap: wrap; }}
 .static-filter-left label {{ margin-right: 0; }}
@@ -451,7 +457,7 @@ textarea {{ width: 100%; min-height: 12rem; }}
 .dual-listbox-column select {{ min-width: 12rem; width: clamp(12rem, 22vw, 18rem); }}
 .dual-listbox-actions {{ display: flex; flex-direction: column; gap: 0.35rem; }}
 .dual-listbox-actions button {{ min-width: 2.25rem; }}
-.dynamic-filters {{ padding-top: 0.5rem; border-top: 1px solid #ddd; }}
+.dynamic-filters {{ display: flex; align-items: center; gap: 0.75em; flex-wrap: wrap; padding-top: 0.5rem; border-top: 1px solid #ddd; }}
 .pagination-controls {{ display: inline-flex !important; align-items: center; justify-content: flex-end; margin: 0; white-space: nowrap; }}
 .pagination-controls form {{ display: inline-flex !important; align-items: center; gap: 0.4rem; margin: 0; white-space: nowrap; }}
 .pagination-controls select {{ margin: 0; }}
@@ -462,18 +468,25 @@ textarea {{ width: 100%; min-height: 12rem; }}
    Some deployments rendered the nested pagination form on a separate line or
    aligned it left despite flex/grid declarations. Floats provide a conservative
    two-column layout for the left action and right pagination controls. */
-.list-control-row {{ overflow: hidden; margin: 0.25rem 0; width: 100%; }}
+.list-control-row {{ overflow: hidden; margin: 0.5rem 0; width: 100%; }}
 .list-control-left {{ float: left; }}
 .list-control-right {{ float: right; text-align: right; white-space: nowrap; }}
 .list-control-right .pagination-controls {{ justify-content: flex-end; }}
-.issue-list-table {{ clear: both; margin: 0.25rem 0; font-size: 0.9rem; }}
+.issue-list-table, .issue-history-table, .issue-metadata-table {{ clear: both; margin: 0.5rem 0; font-size: 0.9rem; }}
 .error {{ color: #900; font-weight: bold; }}
 .notice {{ color: #555; }}
 .section {{ margin-top: 1.5rem; }}
 .markdown-body {{ border: 1px solid #ddd; padding: 0.75rem; background: #fafafa; }}
+.markdown-body > :first-child {{ margin-top: 0; }}
+.markdown-body > :last-child {{ margin-bottom: 0; }}
+.markdown-body h1 {{ margin: 0.4rem 0 0.5rem; font-size: 1.35rem; line-height: 1.25; }}
+.markdown-body h2 {{ margin: 0.9rem 0 0.45rem; font-size: 1.2rem; line-height: 1.25; }}
+.markdown-body h3 {{ margin: 0.8rem 0 0.4rem; font-size: 1.05rem; line-height: 1.3; }}
+.markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body table {{ margin: 0.6rem 0; }}
+.markdown-body code {{ font-family: Menlo, Consolas, monospace; font-size: 0.95em; }}
 pre {{ overflow-x: auto; background: #f3f3f3; padding: 0.5rem; }}
 .form-actions {{ display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }}
-.form-actions input[type=submit], .form-actions .button-link {{ box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-height: 1.65rem; border: 1px solid #999; border-radius: 2px; padding: 0.15rem 0.55rem; background: #f4f4f4; color: #111; font: 400 0.85rem Arial, sans-serif; text-decoration: none; line-height: 1.2; }}
+.form-actions input[type=submit], .form-actions button, .form-actions .button-link {{ box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-height: 1.65rem; border: 1px solid #999; border-radius: 2px; padding: 0.15rem 0.55rem; background: #f4f4f4; color: #111; font-size: 0.85rem; font-weight: 400; text-decoration: none; line-height: 1.2; }}
 button, input[type=submit] {{ cursor: pointer; }}
 </style>
 <script>
@@ -2099,12 +2112,12 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
     auto_refresh_control = render_auto_refresh_control(cfg, page, admin)
     auto_refresh_script = render_auto_refresh_script(cfg, page, admin)
     top_controls = f'''
-<div class="list-control-row issue-list-top-controls" style="overflow:hidden;margin:0.25rem 0;width:100%;">
+<div class="list-control-row issue-list-top-controls">
 <div class="list-control-left" style="float:left;"><a href="{h(action_url('create'))}">Create new issue</a></div>
 <div class="list-control-right" style="float:right;text-align:right;white-space:nowrap;">{pagination_top}</div>
 </div>'''
     bottom_controls = f'''
-<div class="list-control-row issue-list-bottom-controls" style="overflow:hidden;margin:0.25rem 0;width:100%;">
+<div class="list-control-row issue-list-bottom-controls">
 <div class="list-control-left" style="float:left;">{auto_refresh_control}</div>
 <div class="list-control-right" style="float:right;text-align:right;white-space:nowrap;">{pagination_bottom}</div>
 </div>'''
@@ -2237,7 +2250,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     contributing_display = display_usernames(contributing_users) if contributing_users else "none"
     rows.append(("Contributing users", contributing_display))
 
-    meta = "<table>" + "".join(
+    meta = "<table class='issue-metadata-table'>" + "".join(
         f"<tr><th>{h(label)}</th><td>{value if label in {'Assignee','Priority','Percent complete','State','Due date','Created','Updated','Completed'} else h(value)}</td></tr>"
         for label, value in rows
     ) + "</table>"
@@ -2249,7 +2262,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
             if c["time_worked_minutes"] is not None:
                 time_worked = f" (Time worked: {h(labeled_time_worked(c['time_worked_minutes']))})"
             comments_html.append(
-                f"<article><h3>{h(display_username(c['commenter_username']))} at {timestamp_html(c['created_at'])}{time_worked}</h3>"
+                f"<article><div class='comment-meta'>{h(display_username(c['commenter_username']))} at {timestamp_html(c['created_at'])}{time_worked}</div>"
                 f"<div class='markdown-body'>{markdown_to_html(c['comment_text'])}</div></article>"
             )
     else:
@@ -2278,7 +2291,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
 <input type="hidden" name="id" value="{h(issue_id)}">
 <input type="hidden" name="contributing_users_final_present" value="1">
 {contributing_user_dual_list("contributing_users_final", contributing_users, role_exclusions)}
-<p><input type="submit" value="Update contributing users"></p>
+<p class="form-actions"><input type="submit" value="Update contributing users"></p>
 </form>""")
     elif user_is_contributing:
         tag_html.append(f"""
@@ -2286,7 +2299,7 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
 <input type="hidden" name="action" value="contributing_users_update">
 <input type="hidden" name="id" value="{h(issue_id)}">
 <input type="hidden" name="remove_contributing_users" value="{h(username)}">
-<p><input type="submit" value="Remove me from contributing users"></p>
+<p class="form-actions"><input type="submit" value="Remove me from contributing users"></p>
 </form>""")
     elif contributing_users:
         tag_html.append("<p>" + h(display_usernames(contributing_users)) + "</p>")
@@ -3287,7 +3300,7 @@ def action_login(form: cgi.FieldStorage, username: Optional[str] = None) -> None
 <input type="text" id="auth_username" name="{h(AUTH_FORM_USERNAME_FIELD)}" autocomplete="username" autofocus></p>
 <p><label for="auth_password">Password</label><br>
 <input type="password" id="auth_password" name="{h(AUTH_FORM_PASSWORD_FIELD)}" autocomplete="current-password"></p>
-<p><button type="submit">Log in</button></p>
+<p class="form-actions"><button type="submit">Log in</button></p>
 </form>
 </div>
 """

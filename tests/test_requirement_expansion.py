@@ -192,12 +192,15 @@ def test_issue_view_metadata_ordering_timestamps_blank_due_and_consistent_action
     assert "description" in lower and "comments" in lower and "attachments" in lower
     assert "completed" in lower
     assert html.find("newer") < html.find("older")
+    assert "class='comment-meta'" in html
+    assert "<article><h3>" not in html
     assert html.find("a.txt") < html.find("b.txt")
     assert 'class="local-timestamp"' in html
     assert 'data-utc="2026-01-01T12:00:00Z"' in html
     assert "Intl.DateTimeFormat" in html
     assert 'timeZoneName: "short"' in html
     assert "YYYY-MM-DD" not in html
+    assert "<table class='issue-metadata-table'>" in html
     assert "<th>Assignee</th>" in html
     assert "<th>Assigned</th>" not in html
 

@@ -170,6 +170,20 @@ SEARCH_HISTORY_LIMIT - `10`
 - When `ISSUES_VERSION` is not empty, authenticated pages display a footer containing `Issues` followed by the version number.
 - The version footer text is small, horizontally centered, vertically separated from the preceding content, and styled in a lighter unobtrusive color.
 - The application version number is not displayed on unauthenticated public pages, including login, login failed, logged out, and authentication error pages.
+- Page-level action rows, form submit rows, pagination rows, filter rows, inline edit forms, and compact utility controls must use shared spacing rules instead of page-specific ad hoc margins.
+- Grouped controls in the same row must use explicit row gaps. The standard horizontal gap between related controls is approximately `0.6rem` to `0.75rem`; tighter compound controls, such as pagination buttons around a page selector, may use a smaller gap of approximately `0.4rem`.
+- Form submit rows must use the shared form-action spacing and button/link sizing so submit buttons and cancel links align consistently across create, update, comment, attach, close, cancel, login, and contributing-user management forms.
+- Issue-list and issue-history pagination control rows must use the same vertical spacing, table adjacency spacing, and right-aligned pagination style.
+- Static and Dynamic issue-list filter groups must use the same row-wrapping and inter-control spacing model, with the Search control allowed to align to the right side of the Static filter row when horizontal space permits.
+- Inline edit controls rendered inside issue metadata tables must use compact inline form spacing so adjacent inputs, selectors, and submit buttons are visually separated consistently.
+- The issue-list table text size must remain compact at approximately `0.9rem`.
+- The issue-view metadata table must use the same compact text sizing and table adjacency rules as the issue-list table, even though the issue-view metadata table is label/value oriented rather than list oriented.
+- Application text styling must use shared rules for page headings, section headings, metadata text, form controls, notices, errors, Markdown-rendered content, and compact utility text instead of relying on page-specific browser defaults.
+- Section headings, including issue view sections, issue history context headings, and Markdown help headings outside rendered Markdown examples, must use a consistent section-heading style.
+- Comment author, timestamp, and time-worked metadata must use a compact metadata text style rather than raw heading styling.
+- Form controls and compact control buttons must inherit the application font family so control text is consistent across form actions, pagination, search history, inline issue editors, and login controls.
+- Markdown-rendered descriptions, comments, and help examples must use application-consistent text, heading, list, and code styling within the Markdown content container.
+- Notice, error, footer, timestamp, current-user, and other secondary text styles must be explicitly defined so subdued and error text are consistent across public and authenticated pages.
 
 # Data Sources Controlled by Constants or Globals
 

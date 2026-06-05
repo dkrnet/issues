@@ -74,6 +74,9 @@ def test_public_authentication_actions_are_routed_without_user_lookup(app, patch
         assert "invalid user" not in html.lower()
         assert "anonymous" not in html.lower()
         assert "<html" in html.lower()
+        if action == "login":
+            assert 'class="form-actions"' in html
+            assert '.form-actions input[type=submit], .form-actions button, .form-actions .button-link' in html
     status, headers, body = parse_headers(invoke_action(app, action="favicon", form=make_form(action="favicon"), user=None))
     assert "403" not in status
     assert headers.get("content-type", "").startswith("image/x-icon")
@@ -153,6 +156,9 @@ def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_co
     assert "Search issues" in admin_html
     assert "static-filter-row" in admin_html
     assert "clamp(12em, 28vw, 32em)" in admin_html
+    assert ".static-filter-left" in admin_html and "gap: 0.75em" in admin_html
+    assert ".dynamic-filters" in admin_html and "display: flex" in admin_html
+    assert ".static-filters label, .dynamic-filters label" in admin_html and "margin-right: 0" in admin_html
     assert "Comments only" not in admin_html
     assert "Attachments only" not in admin_html
     assert 'name="has_comments" value="1"' in admin_html and 'onclick="this.form.submit()"' in admin_html
@@ -174,7 +180,12 @@ def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_co
     assert 'float:right' in admin_html
     assert 'white-space:nowrap' in admin_html
     assert "<table class='issue-list-table'>" in admin_html
-    assert ".issue-list-table" in admin_html and "font-size: 0.9rem" in admin_html
+    assert ".list-control-row" in admin_html and "margin: 0.5rem 0" in admin_html
+    assert ".issue-list-table, .issue-history-table, .issue-metadata-table" in admin_html and "font-size: 0.9rem" in admin_html
+    assert ".header h1" in admin_html and "font-size: 2rem" in admin_html
+    assert "h2, .section-heading" in admin_html and "font-size: 1.35rem" in admin_html
+    assert "button, input, select, textarea { font: inherit; }" in admin_html
+    assert ".metadata-text, .comment-meta, .current-user, .notice, .last-refreshed" in admin_html
     assert "<title>Issue List - 4 open</title>" in admin_html
     assert "<title>Issue List - 3 open</title>" in alice_html
     assert "<title>Issue List - 3 open</title>" in alice_filtered_html
@@ -228,6 +239,7 @@ def test_view_page_authorization_and_role_specific_controls(app, patched_environ
     assert "Seed issue" in creator_html
     assert "<title>Issue 1 - Seed issue</title>" in creator_html
     assert "<h1>Issue 1 - Seed issue</h1>" in creator_html
+    assert "<table class='issue-metadata-table'>" in creator_html
     assert "<th>Assignee</th>" in creator_html
     assert "<th>Assigned</th>" not in creator_html
     assert "description" in creator_html.lower()
@@ -235,6 +247,11 @@ def test_view_page_authorization_and_role_specific_controls(app, patched_environ
     assert "attachments" in creator_html.lower()
     assert "Edit Title" in creator_html or "edit" in creator_html.lower()
     assert "Cancel" in creator_html
+    assert '.actions {' in creator_html and 'gap: 0.65rem' in creator_html
+    assert 'form.inline { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; }' in creator_html
+    assert 'class="form-actions"><input type="submit" value="Update contributing users">' in creator_html
+    assert ".comment-meta" in creator_html and "font-size: 0.9rem" in creator_html
+    assert ".markdown-body h1" in creator_html and ".markdown-body h2" in creator_html and ".markdown-body code" in creator_html
     assert "percent" in assigned_html.lower() or "complete" in assigned_html.lower()
     assert "403" in (unauth_status + str(unauth_body)) or "forbidden" in str(unauth_body).lower()
 
@@ -304,6 +321,9 @@ def test_issue_history_page_authorization_pagination_and_metadata_only(app, patc
 
     assert "History for issue" in page_one
     assert page_one.count('class="pagination-controls"') >= 2
+    assert 'class="list-control-row issue-history-top-controls"' in page_one
+    assert 'class="list-control-row issue-history-bottom-controls"' in page_one
+    assert ".issue-list-table, .issue-history-table, .issue-metadata-table" in page_one
     assert page_one.count("Previous") >= 2 and page_one.count("Next") >= 2
     assert 'name="page"' in page_one
     assert 'name="id" value="%s"' % issue_id in page_one

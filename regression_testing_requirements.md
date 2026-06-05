@@ -1457,6 +1457,12 @@ The tests shall inspect generated HTML and verify:
 - Auto-refresh markup avoids duplicate submitted `auto_refresh` controls that can cause the previous preference value to override the newly selected value.
 - The auto-refresh control and lower pagination controls are horizontally level in a shared bottom issue-list control row where documented.
 - Action items documented as using a consistent UI element style do not mix links, buttons, and other control styles.
+- Page-level action rows, form submit rows, pagination rows, issue-list filters, issue-history controls, and issue-view inline edit forms use shared structural classes for spacing rather than page-specific ad hoc control spacing.
+- Create, update, comment, attach, close, cancel, login, and contributing-user management forms use the shared form-action row structure for submit controls and cancel controls when present.
+- The issue-list table retains the documented compact text size.
+- The issue-view metadata table uses the same documented compact table text size as the issue-list table.
+- Comment author, timestamp, and time-worked metadata uses the documented compact metadata class rather than raw heading markup.
+- Shared typography rules are present for page headings, section headings, metadata text, form controls, notices, errors, and Markdown-rendered content.
 - Required table headers are present.
 - Percent-complete table headers and issue-list values are present where documented.
 - Static and Dynamic filter controls are present or absent according to role and current status filter.
