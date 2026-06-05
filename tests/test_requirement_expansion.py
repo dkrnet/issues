@@ -125,7 +125,7 @@ def test_user_displays_prefer_full_name_and_keep_login_values(app, patched_envir
 
     dual_issue_id = seed_issue(title="Dual sort", creator_username="alice", assigned_username="", status="open")
     dual_view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(dual_issue_id)), "alice"))
-    dual_start = dual_view_html.find('class="dual-listbox tagged-users-dual-list"')
+    dual_start = dual_view_html.find('class="dual-listbox contributing-users-dual-list"')
     dual_end = dual_view_html.find("</div>", dual_view_html.find("</select>", dual_start)) + len("</div>")
     dual_html = dual_view_html[dual_start:dual_end]
     assert dual_html.find('value="admin">Admin User</option>') < dual_html.find('value="bob">Bob Builder</option>')

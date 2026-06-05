@@ -80,9 +80,17 @@ def test_public_authentication_actions_are_routed_without_user_lookup(app, patch
 
 
 
-def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_control(app, patched_environment, invoke_action, parse_headers):
+def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_control(app, patched_environment, seed_issue, seed_contributing_user, invoke_action, make_form, parse_headers):
+    seed_issue(title="Alice open", creator_username="alice", assigned_username="", status="open")
+    seed_issue(title="Alice closed", creator_username="alice", assigned_username="", status="closed")
+    seed_issue(title="Assigned open", creator_username="mallory", assigned_username="alice", status="open")
+    contributed_id = seed_issue(title="Contributed open", creator_username="mallory", assigned_username="bob", status="open")
+    seed_contributing_user(contributed_id, contributing_username="alice")
+    seed_issue(title="Inaccessible open", creator_username="mallory", assigned_username="bob", status="open")
+
     admin_html = _html(parse_headers, invoke_action(app, action="list", user="admin"))
     alice_html = _html(parse_headers, invoke_action(app, action="list", user="alice"))
+    alice_filtered_html = _html(parse_headers, invoke_action(app, action="list", form=make_form(action="list", status="closed", search="Alice closed"), user="alice"))
 
     lowered = admin_html.lower()
     assert "<table" in lowered
@@ -166,6 +174,11 @@ def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_co
     assert 'float:right' in admin_html
     assert 'white-space:nowrap' in admin_html
     assert "<table class='issue-list-table'>" in admin_html
+    assert ".issue-list-table" in admin_html and "font-size: 0.9rem" in admin_html
+    assert "<title>Issue List - 4 open</title>" in admin_html
+    assert "<title>Issue List - 3 open</title>" in alice_html
+    assert "<title>Issue List - 3 open</title>" in alice_filtered_html
+    assert "<h1>Issue List</h1>" in alice_html
     expected_headers = [
         "<th>ID</th>", "<th>Title</th>", "<th>Status</th>",
         "<th>Due</th>", "<th>Priority</th>", "<th>Creator</th>",
@@ -213,6 +226,8 @@ def test_view_page_authorization_and_role_specific_controls(app, patched_environ
 
     assert_banner_uses_config(creator_html)
     assert "Seed issue" in creator_html
+    assert "<title>Issue 1 - Seed issue</title>" in creator_html
+    assert "<h1>Issue 1 - Seed issue</h1>" in creator_html
     assert "<th>Assignee</th>" in creator_html
     assert "<th>Assigned</th>" not in creator_html
     assert "description" in creator_html.lower()

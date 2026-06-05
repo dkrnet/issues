@@ -148,7 +148,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 DB_FILE = "/var/lib/issues/issues.db"
 DEFAULT_CLOSING_COMMENT = "no comment provided"
-ISSUES_VERSION = "1.0.0"
+ISSUES_VERSION = "1.0.0-dev.6+ffba3b8"
 MAX_UPLOAD_BYTES = 10485760
 ASSIGNEE_GROUP = "users"
 ASSIGNEE_EXCLUDE = ""
@@ -379,7 +379,7 @@ def parse_banner_dimensions() -> tuple[str, str]:
     return match.group(1), match.group(2)
 
 
-def render_page(title: str, body: str, current_user: Optional[str] = None) -> str:
+def render_page(title: str, body: str, current_user: Optional[str] = None, browser_title: Optional[str] = None) -> str:
     width, height = parse_banner_dimensions()
     if BANNER_FILE:
         dimension_attrs = ""
@@ -407,7 +407,7 @@ def render_page(title: str, body: str, current_user: Optional[str] = None) -> st
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>{h(title)}</title>
+<title>{h(browser_title or title)}</title>
 <link rel="icon" href="issues.cgi?action=favicon" type="image/x-icon">
 <style>
 body {{ font-family: Arial, sans-serif; margin: 1.5rem; line-height: 1.4; }}
@@ -466,12 +466,14 @@ textarea {{ width: 100%; min-height: 12rem; }}
 .list-control-left {{ float: left; }}
 .list-control-right {{ float: right; text-align: right; white-space: nowrap; }}
 .list-control-right .pagination-controls {{ justify-content: flex-end; }}
-.issue-list-table {{ clear: both; margin: 0.25rem 0; }}
+.issue-list-table {{ clear: both; margin: 0.25rem 0; font-size: 0.9rem; }}
 .error {{ color: #900; font-weight: bold; }}
 .notice {{ color: #555; }}
 .section {{ margin-top: 1.5rem; }}
 .markdown-body {{ border: 1px solid #ddd; padding: 0.75rem; background: #fafafa; }}
 pre {{ overflow-x: auto; background: #f3f3f3; padding: 0.5rem; }}
+.form-actions {{ display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }}
+.form-actions input[type=submit], .form-actions .button-link {{ box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-height: 1.65rem; border: 1px solid #999; border-radius: 2px; padding: 0.15rem 0.55rem; background: #f4f4f4; color: #111; font: 400 0.85rem Arial, sans-serif; text-decoration: none; line-height: 1.2; }}
 button, input[type=submit] {{ cursor: pointer; }}
 </style>
 <script>
@@ -686,9 +688,9 @@ button, input[type=submit] {{ cursor: pointer; }}
         replaceOptions(available, availableValues);
         replaceOptions(selected, selectedValues);
     }};
-    window.syncTaggedUsersWithAssignee = function(select) {{
+    window.syncContributingUsersWithAssignee = function(select) {{
         var form = select && select.form;
-        var root = form && form.getElementsByClassName("tagged-users-dual-list")[0];
+        var root = form && form.getElementsByClassName("contributing-users-dual-list")[0];
         window.syncDualListExclusions(root, [select.value]);
     }};
     window.prepareDualListSubmit = function(form) {{
@@ -875,6 +877,44 @@ def action_url(action: str, **params: Any) -> str:
     return "issues.cgi?" + urlencode(data)
 
 
+def safe_return_url(value: str, fallback: str) -> str:
+    raw = (value or "").strip()
+    if not raw:
+        return fallback
+    parsed = urlsplit(raw)
+    if "\r" in raw or "\n" in raw or raw.lower().startswith("//"):
+        return fallback
+    if parsed.scheme or parsed.netloc:
+        allowed_hosts = {
+            os.environ.get("HTTP_HOST", "").strip(),
+            os.environ.get("SERVER_NAME", "").strip(),
+        }
+        allowed_hosts.discard("")
+        if parsed.netloc not in allowed_hosts:
+            return fallback
+        raw = parsed.path or fallback
+        if parsed.query:
+            raw += f"?{parsed.query}"
+    return raw or fallback
+
+
+def previous_page_url(form: cgi.FieldStorage, fallback: str) -> str:
+    # REGRESSION GUARD: Cancel controls use prior-page destinations supplied by
+    # the browser or a hidden field, but keep them same-site to avoid turning a
+    # simple cancel link into an open redirect.
+    submitted = field_value(form, "return_to", "").strip()
+    referer = os.environ.get("HTTP_REFERER", "").strip()
+    return safe_return_url(submitted or referer, fallback)
+
+
+def hidden_return_to(return_to: str) -> str:
+    return f'<input type="hidden" name="return_to" value="{h(return_to)}">'
+
+
+def cancel_control(return_to: str) -> str:
+    return f'<a class="button-link cancel-button" href="{h(return_to)}">Cancel</a>'
+
+
 def current_request_destination() -> str:
     request_uri = os.environ.get("REQUEST_URI", "").strip()
     if request_uri:
@@ -974,7 +1014,7 @@ def get_assignable_users() -> list[str]:
     )
 
 
-def get_taggable_users(exclude: Iterable[str] = ()) -> list[str]:
+def get_contributing_candidate_users(exclude: Iterable[str] = ()) -> list[str]:
     excluded = {username for username in exclude if username}
     return [username for username in get_assignable_users() if username not in excluded]
 
@@ -987,7 +1027,7 @@ def valid_assignee(username: str) -> bool:
     return user_exists(username) and user_in_group(username, ASSIGNEE_GROUP)
 
 
-def parse_tagged_usernames(value: str) -> list[str]:
+def parse_contributing_usernames(value: str) -> list[str]:
     usernames: list[str] = []
     for username in re.split(r"[\s,]+", value or ""):
         username = username.strip()
@@ -996,7 +1036,7 @@ def parse_tagged_usernames(value: str) -> list[str]:
     return usernames
 
 
-def tagged_user_values(form: cgi.FieldStorage, field_name: str) -> list[str]:
+def contributing_user_values(form: cgi.FieldStorage, field_name: str) -> list[str]:
     if field_name not in form:
         return []
     value = form[field_name]
@@ -1006,29 +1046,29 @@ def tagged_user_values(form: cgi.FieldStorage, field_name: str) -> list[str]:
         raw_values = [str(getattr(value, "value", value))]
     usernames: list[str] = []
     for raw_value in raw_values:
-        for username in parse_tagged_usernames(raw_value):
+        for username in parse_contributing_usernames(raw_value):
             if username not in usernames:
                 usernames.append(username)
     return usernames
 
 
-def validate_tagged_usernames(usernames: Iterable[str]) -> list[str]:
+def validate_contributing_usernames(usernames: Iterable[str]) -> list[str]:
     valid: list[str] = []
-    taggable = set(get_taggable_users())
+    contributing_candidates = set(get_contributing_candidate_users())
     for username in usernames:
-        if username not in taggable:
-            raise AppError(f"Tagged user does not exist or is not taggable: {username}")
+        if username not in contributing_candidates:
+            raise AppError(f"Contributing user does not exist or is not contributing candidate: {username}")
         if username not in valid:
             valid.append(username)
     return valid
 
 
-def validate_tagged_usernames_for_issue_roles(usernames: Iterable[str], excluded_roles: Iterable[str]) -> list[str]:
+def validate_contributing_usernames_for_issue_roles(usernames: Iterable[str], excluded_roles: Iterable[str]) -> list[str]:
     excluded = {username for username in excluded_roles if username}
-    valid = validate_tagged_usernames(usernames)
+    valid = validate_contributing_usernames(usernames)
     for username in valid:
         if username in excluded:
-            raise AppError(f"Tagged user cannot be the issue creator or assigned user: {username}")
+            raise AppError(f"Contributing user cannot be the issue creator or assigned user: {username}")
     return valid
 
 
@@ -1048,21 +1088,21 @@ def fetch_issue(con: sqlite3.Connection, issue_id: int) -> Optional[sqlite3.Row]
     return con.execute("SELECT * FROM issues WHERE id = ?", (issue_id,)).fetchone()
 
 
-def fetch_tagged_usernames(con: sqlite3.Connection, issue_id: int) -> list[str]:
+def fetch_contributing_usernames(con: sqlite3.Connection, issue_id: int) -> list[str]:
     return [
-        row["tagged_username"]
+        row["contributing_username"]
         for row in con.execute(
-            "SELECT tagged_username FROM issue_tagged_users WHERE issue_id = ? ORDER BY tagged_username",
+            "SELECT contributing_username FROM issue_contributing_users WHERE issue_id = ? ORDER BY contributing_username",
             (issue_id,),
         ).fetchall()
     ]
 
 
-def is_tagged_user(con: sqlite3.Connection, issue_id: int, username: str) -> bool:
+def is_contributing_user(con: sqlite3.Connection, issue_id: int, username: str) -> bool:
     if not username:
         return False
     row = con.execute(
-        "SELECT 1 FROM issue_tagged_users WHERE issue_id = ? AND tagged_username = ?",
+        "SELECT 1 FROM issue_contributing_users WHERE issue_id = ? AND contributing_username = ?",
         (issue_id, username),
     ).fetchone()
     return row is not None
@@ -1071,14 +1111,14 @@ def is_tagged_user(con: sqlite3.Connection, issue_id: int, username: str) -> boo
 def can_view_issue(issue: sqlite3.Row, username: str, con: Optional[sqlite3.Connection] = None) -> bool:
     if is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username:
         return True
-    return con is not None and is_tagged_user(con, int(issue["id"]), username)
+    return con is not None and is_contributing_user(con, int(issue["id"]), username)
 
 
 def can_owner_or_admin(issue: sqlite3.Row, username: str) -> bool:
     return is_admin(username) or issue["creator_username"] == username
 
 
-def can_owner_assigned_tagged_or_admin(issue: sqlite3.Row, username: str, con: sqlite3.Connection) -> bool:
+def can_owner_assigned_contributing_or_admin(issue: sqlite3.Row, username: str, con: sqlite3.Connection) -> bool:
     return can_view_issue(issue, username, con)
 
 
@@ -1086,7 +1126,7 @@ def can_owner_assigned_or_admin(issue: sqlite3.Row, username: str) -> bool:
     return is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username
 
 
-def can_manage_tagged_users(issue: sqlite3.Row, username: str) -> bool:
+def can_manage_contributing_users(issue: sqlite3.Row, username: str) -> bool:
     return is_admin(username) or issue["creator_username"] == username or issue["assigned_username"] == username
 
 
@@ -1277,16 +1317,16 @@ def unique_notification_recipients(values: Iterable[Any], exclude: str = "") -> 
 
 def issue_participant_recipients(con: sqlite3.Connection, issue: sqlite3.Row, exclude: str = "") -> list[str]:
     return unique_notification_recipients(
-        [issue["creator_username"], issue["assigned_username"]] + fetch_tagged_usernames(con, int(issue["id"])),
+        [issue["creator_username"], issue["assigned_username"]] + fetch_contributing_usernames(con, int(issue["id"])),
         exclude=exclude,
     )
 
 
-def tagged_users_summary(usernames: Iterable[str], verb: str) -> str:
+def contributing_users_summary(usernames: Iterable[str], verb: str) -> str:
     names = sorted({name for name in usernames if name})
     if not names:
-        return f"{verb} no tagged users"
-    return f"{verb} tagged user{'s' if len(names) != 1 else ''}: {display_usernames(names)}"
+        return f"{verb} no contributing users"
+    return f"{verb} contributing user{'s' if len(names) != 1 else ''}: {display_usernames(names)}"
 
 
 def resolve_notification_triage_recipients(exclude: str = "") -> list[str]:
@@ -1569,31 +1609,31 @@ def assignee_option_tags(selected: Optional[str] = None) -> str:
     return username_option_tags(sort_usernames_for_display(get_assignable_users()), selected, include_empty=True)
 
 
-def tagged_user_dual_list(name: str, selected_usernames: Iterable[str] = (), exclude: Iterable[str] = ()) -> str:
+def contributing_user_dual_list(name: str, selected_usernames: Iterable[str] = (), exclude: Iterable[str] = ()) -> str:
     excluded = {username for username in exclude if username}
-    all_users = get_taggable_users()
-    taggable = set(all_users)
+    all_users = get_contributing_candidate_users()
+    contributing_candidates = set(all_users)
     selected = [
         username for username in selected_usernames
-        if username in taggable and username not in excluded
+        if username in contributing_candidates and username not in excluded
     ]
     selected_set = set(selected)
     display_names = {username: display_username(username) for username in all_users}
-    available = sort_usernames_for_display(get_taggable_users(excluded | selected_set))
+    available = sort_usernames_for_display(get_contributing_candidate_users(excluded | selected_set))
     selected = sort_usernames_for_display(selected)
     available_options = "\n".join(f'<option value="{h(username)}">{h(display_names.get(username, username))}</option>' for username in available)
     selected_options = "\n".join(f'<option value="{h(username)}">{h(display_names.get(username, username))}</option>' for username in selected)
     return f"""
-<div class="dual-listbox tagged-users-dual-list" data-all-users="{h(json.dumps(all_users))}" data-user-labels="{h(json.dumps(display_names))}" data-base-excluded="{h(json.dumps(sorted(excluded)))}">
+<div class="dual-listbox contributing-users-dual-list" data-all-users="{h(json.dumps(all_users))}" data-user-labels="{h(json.dumps(display_names))}" data-base-excluded="{h(json.dumps(sorted(excluded)))}">
 <div class="dual-listbox-column">
 <label>Available users<br><select class="dual-listbox-available" multiple size="8">{available_options}</select></label>
 </div>
 <div class="dual-listbox-actions">
-<button type="button" onclick="moveDualListOptions(this, 'right')" aria-label="Add selected tagged users">&gt;</button>
-<button type="button" onclick="moveDualListOptions(this, 'left')" aria-label="Remove selected tagged users">&lt;</button>
+<button type="button" onclick="moveDualListOptions(this, 'right')" aria-label="Add selected contributing users">&gt;</button>
+<button type="button" onclick="moveDualListOptions(this, 'left')" aria-label="Remove selected contributing users">&lt;</button>
 </div>
 <div class="dual-listbox-column">
-<label>Tagged users<br><select class="dual-listbox-selected" name="{h(name)}" multiple size="8">{selected_options}</select></label>
+<label>Contributing users<br><select class="dual-listbox-selected" name="{h(name)}" multiple size="8">{selected_options}</select></label>
 </div>
 </div>"""
 
@@ -1642,25 +1682,30 @@ def sql_like_contains_pattern(value: str) -> str:
     return f"%{value.lower()}%"
 
 
+def add_issue_visibility_filter(conditions: list[str], params: list[Any], username: str, admin: bool) -> None:
+    if admin:
+        return
+    conditions.append(
+        """(
+            i.creator_username = ?
+            OR i.assigned_username = ?
+            OR EXISTS (
+                SELECT 1 FROM issue_contributing_users tu_scope
+                WHERE tu_scope.issue_id = i.id
+                  AND tu_scope.contributing_username = ?
+            )
+        )"""
+    )
+    params.extend([username, username, username])
+
+
 def add_static_list_filters(
     conditions: list[str], params: list[Any], cfg: dict[str, Any], username: str, admin: bool
 ) -> None:
     if cfg["status"] != "any":
         conditions.append("i.status = ?")
         params.append(cfg["status"])
-    if not admin:
-        conditions.append(
-            """(
-                i.creator_username = ?
-                OR i.assigned_username = ?
-                OR EXISTS (
-                    SELECT 1 FROM issue_tagged_users tu_scope
-                    WHERE tu_scope.issue_id = i.id
-                      AND tu_scope.tagged_username = ?
-                )
-            )"""
-        )
-        params.extend([username, username, username])
+    add_issue_visibility_filter(conditions, params, username, admin)
 
     search = cfg.get("search", "")
     if search:
@@ -1713,6 +1758,14 @@ def build_static_list_filters(cfg: dict[str, Any], username: str, admin: bool) -
     params: list[Any] = []
     add_static_list_filters(conditions, params, cfg, username, admin)
     return conditions, params
+
+
+def count_accessible_open_issues(con: sqlite3.Connection, username: str, admin: bool) -> int:
+    conditions = ["i.status = ?"]
+    params: list[Any] = ["open"]
+    add_issue_visibility_filter(conditions, params, username, admin)
+    row = con.execute(f"SELECT COUNT(*) FROM issues i {list_where_clause(conditions)}", params).fetchone()
+    return int(row[0] if row else 0)
 
 
 def add_dynamic_list_filters(
@@ -1995,6 +2048,7 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
             ORDER BY i.id DESC
         """
         all_rows = con.execute(sql, final_params).fetchall()
+        open_issue_count = count_accessible_open_issues(con, username, admin)
 
     total_pages = max(1, (len(all_rows) + ISSUES_PER_PAGE - 1) // ISSUES_PER_PAGE)
     page = clamp_page(parse_page_number(form), total_pages)
@@ -2078,7 +2132,7 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
     body.append(bottom_controls)
     body.append(auto_refresh_script)
     send_headers()
-    print(render_page("Issue List", "\n".join(body), username))
+    print(render_page("Issue List", "\n".join(body), username, browser_title=f"Issue List - {open_issue_count} open"))
 
 
 def action_view(form: cgi.FieldStorage, username: str) -> None:
@@ -2095,15 +2149,15 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
             "SELECT id, filename, uploader_username, created_at FROM attachments WHERE issue_id = ? ORDER BY created_at ASC, id ASC",
             (issue_id,),
         ).fetchall()
-        tagged_users = fetch_tagged_usernames(con, issue_id)
+        contributing_users = fetch_contributing_usernames(con, issue_id)
 
     admin = is_admin(username)
     open_issue = issue["status"] == "open"
     owner_or_admin = can_owner_or_admin(issue, username)
     assigned = issue["assigned_username"] == username
-    can_manage_tags = can_manage_tagged_users(issue, username)
-    user_is_tagged = username in tagged_users
-    can_comment_attach = open_issue and (owner_or_admin or assigned or user_is_tagged)
+    can_manage_tags = can_manage_contributing_users(issue, username)
+    user_is_contributing = username in contributing_users
+    can_comment_attach = open_issue and (owner_or_admin or assigned or user_is_contributing)
 
     actions: list[str] = [render_action_button("list", "Back to list")]
     actions.append(render_action_button("history", "History", id=issue_id))
@@ -2180,8 +2234,8 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     if issue["status"] in ISSUE_TERMINAL_STATUSES:
         rows.append(("Completed", timestamp_html(issue["completed_at"])))
 
-    tagged_display = display_usernames(tagged_users) if tagged_users else "none"
-    rows.append(("Tagged users", tagged_display))
+    contributing_display = display_usernames(contributing_users) if contributing_users else "none"
+    rows.append(("Contributing users", contributing_display))
 
     meta = "<table>" + "".join(
         f"<tr><th>{h(label)}</th><td>{value if label in {'Assignee','Priority','Percent complete','State','Due date','Created','Updated','Completed'} else h(value)}</td></tr>"
@@ -2215,29 +2269,29 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         attach_html.append("<p>No attachments.</p>")
     attach_html.append("</div>")
 
-    tag_html = ["<div class='section'><h2>Tagged users</h2>"]
+    tag_html = ["<div class='section'><h2>Contributing users</h2>"]
     if can_manage_tags:
         role_exclusions = [issue["creator_username"], issue["assigned_username"]]
         tag_html.append(f"""
 <form method="post" action="issues.cgi" onsubmit="return prepareDualListSubmit(this)">
-<input type="hidden" name="action" value="tags_update">
+<input type="hidden" name="action" value="contributing_users_update">
 <input type="hidden" name="id" value="{h(issue_id)}">
-<input type="hidden" name="tagged_users_final_present" value="1">
-{tagged_user_dual_list("tagged_users_final", tagged_users, role_exclusions)}
-<p><input type="submit" value="Update tagged users"></p>
+<input type="hidden" name="contributing_users_final_present" value="1">
+{contributing_user_dual_list("contributing_users_final", contributing_users, role_exclusions)}
+<p><input type="submit" value="Update contributing users"></p>
 </form>""")
-    elif user_is_tagged:
+    elif user_is_contributing:
         tag_html.append(f"""
 <form method="post" action="issues.cgi">
-<input type="hidden" name="action" value="tags_update">
+<input type="hidden" name="action" value="contributing_users_update">
 <input type="hidden" name="id" value="{h(issue_id)}">
-<input type="hidden" name="remove_tagged_users" value="{h(username)}">
-<p><input type="submit" value="Remove me from tagged users"></p>
+<input type="hidden" name="remove_contributing_users" value="{h(username)}">
+<p><input type="submit" value="Remove me from contributing users"></p>
 </form>""")
-    elif tagged_users:
-        tag_html.append("<p>" + h(display_usernames(tagged_users)) + "</p>")
+    elif contributing_users:
+        tag_html.append("<p>" + h(display_usernames(contributing_users)) + "</p>")
     else:
-        tag_html.append("<p>No tagged users.</p>")
+        tag_html.append("<p>No contributing users.</p>")
     tag_html.append("</div>")
 
     body = f"""
@@ -2249,23 +2303,25 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
 {''.join(attach_html)}
 """
     send_headers()
-    print(render_page(f"Issue {issue_id}", body, username))
+    print(render_page(f"Issue {issue_id} - {issue['title']}", body, username))
 
 
 def action_create(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_create_submit(form, username)
+    return_to = previous_page_url(form, action_url("list"))
     body = f"""
 <form method="post" action="issues.cgi" onsubmit="return prepareDualListSubmit(this)">
 <input type="hidden" name="action" value="create_submit">
+{hidden_return_to(return_to)}
 <p><label>Title<br><input type="text" name="title" size="80" required autofocus></label></p>
 <p><label>Description<br><textarea name="description" required></textarea></label></p>
 {render_markdown_help_link()}
 <p><label>Priority <select name="priority">{option_tags([p for p in PRIORITIES if p != 'any'], 'normal')}</select></label></p>
 <p><label>Due date <input type="date" name="due_date"></label> <span class="notice">Use YYYY-MM-DD.</span></p>
-<p><label>Assignee <select name="assigned_username" onchange="syncTaggedUsersWithAssignee(this)">{assignee_option_tags('')}</select></label></p>
-<div class="section"><h2>Tagged users</h2>{tagged_user_dual_list("tagged_users", [], [username])}</div>
-<p><input type="submit" value="Create issue"></p>
+<p><label>Assignee <select name="assigned_username" onchange="syncContributingUsersWithAssignee(this)">{assignee_option_tags('')}</select></label></p>
+<div class="section"><h2>Contributing users</h2>{contributing_user_dual_list("contributing_users", [], [username])}</div>
+<p class="form-actions"><input type="submit" value="Create issue">{cancel_control(return_to)}</p>
 </form>
 """
     send_headers()
@@ -2289,8 +2345,8 @@ def action_create_submit(form: cgi.FieldStorage, username: str) -> None:
         validate_due_date(due_date)
     if assignee and not valid_assignee(assignee):
         raise AppError("Assignee does not exist or is not assignable")
-    tagged_users = validate_tagged_usernames_for_issue_roles(
-        tagged_user_values(form, "tagged_users"),
+    contributing_users = validate_contributing_usernames_for_issue_roles(
+        contributing_user_values(form, "contributing_users"),
         [username, assignee or ""],
     )
 
@@ -2304,16 +2360,16 @@ def action_create_submit(form: cgi.FieldStorage, username: str) -> None:
         )
         issue_id = int(cur.lastrowid)
         record_issue_history(con, issue_id, username, "created", "Created issue", now)
-        for tagged_username in tagged_users:
+        for contributing_username in contributing_users:
             con.execute(
-                "INSERT INTO issue_tagged_users (issue_id, tagged_username, tagged_by_username, created_at) VALUES (?, ?, ?, ?)",
-                (issue_id, tagged_username, username, now),
+                "INSERT INTO issue_contributing_users (issue_id, contributing_username, contributed_by_username, created_at) VALUES (?, ?, ?, ?)",
+                (issue_id, contributing_username, username, now),
             )
-        if tagged_users:
-            record_issue_history(con, issue_id, username, "tagged_users_added", tagged_users_summary(tagged_users, "Added"), now)
+        if contributing_users:
+            record_issue_history(con, issue_id, username, "contributing_users_added", contributing_users_summary(contributing_users, "Added"), now)
         con.commit()
     create_event = "Issue assigned" if assignee else "Issue created"
-    notify_issue_event(issue_id, username, unique_notification_recipients([assignee] + tagged_users, exclude=username), create_event)
+    notify_issue_event(issue_id, username, unique_notification_recipients([assignee] + contributing_users, exclude=username), create_event)
     redirect(action_url("view", id=issue_id))
 
 
@@ -2349,53 +2405,53 @@ def action_assign(form: cgi.FieldStorage, username: str) -> None:
     redirect(action_url("view", id=issue_id))
 
 
-def action_tags_update(form: cgi.FieldStorage, username: str) -> None:
+def action_contributing_users_update(form: cgi.FieldStorage, username: str) -> None:
     issue_id = require_id(form)
-    raw_add_usernames = tagged_user_values(form, "add_tagged_users")
-    remove_usernames = tagged_user_values(form, "remove_tagged_users")
-    final_usernames_present = "tagged_users_final_present" in form
-    raw_final_usernames = tagged_user_values(form, "tagged_users_final")
+    raw_add_usernames = contributing_user_values(form, "add_contributing_users")
+    remove_usernames = contributing_user_values(form, "remove_contributing_users")
+    final_usernames_present = "contributing_users_final_present" in form
+    raw_final_usernames = contributing_user_values(form, "contributing_users_final")
     with db_connect() as con:
         issue = fetch_issue(con, issue_id)
         if issue is None:
             raise AppError("Issue not found", "404 Not Found")
-        current_tags = set(fetch_tagged_usernames(con, issue_id))
-        manager = can_manage_tagged_users(issue, username)
+        current_contributors = set(fetch_contributing_usernames(con, issue_id))
+        manager = can_manage_contributing_users(issue, username)
         if not manager:
-            if final_usernames_present or raw_add_usernames or any(tagged_username != username for tagged_username in remove_usernames):
-                raise AppError("You are not authorized to update tagged users for this issue", "403 Forbidden")
-            if username not in current_tags:
-                raise AppError("You are not authorized to update tagged users for this issue", "403 Forbidden")
+            if final_usernames_present or raw_add_usernames or any(contributing_username != username for contributing_username in remove_usernames):
+                raise AppError("You are not authorized to update contributing users for this issue", "403 Forbidden")
+            if username not in current_contributors:
+                raise AppError("You are not authorized to update contributing users for this issue", "403 Forbidden")
             remove_usernames = [username]
             add_usernames: list[str] = []
         else:
             role_exclusions = [issue["creator_username"], issue["assigned_username"]]
             if final_usernames_present:
-                final_usernames = set(validate_tagged_usernames_for_issue_roles(raw_final_usernames, role_exclusions))
-                add_usernames = sorted(final_usernames - current_tags)
-                remove_usernames = sorted(current_tags - final_usernames)
+                final_usernames = set(validate_contributing_usernames_for_issue_roles(raw_final_usernames, role_exclusions))
+                add_usernames = sorted(final_usernames - current_contributors)
+                remove_usernames = sorted(current_contributors - final_usernames)
             else:
-                add_usernames = validate_tagged_usernames_for_issue_roles(raw_add_usernames, role_exclusions)
+                add_usernames = validate_contributing_usernames_for_issue_roles(raw_add_usernames, role_exclusions)
 
-        added = [tagged_username for tagged_username in add_usernames if tagged_username not in current_tags]
-        removed = [tagged_username for tagged_username in remove_usernames if tagged_username in current_tags]
+        added = [contributing_username for contributing_username in add_usernames if contributing_username not in current_contributors]
+        removed = [contributing_username for contributing_username in remove_usernames if contributing_username in current_contributors]
         if added or removed:
             now = now_utc_sql()
-            for tagged_username in added:
+            for contributing_username in added:
                 con.execute(
-                    "INSERT INTO issue_tagged_users (issue_id, tagged_username, tagged_by_username, created_at) VALUES (?, ?, ?, ?)",
-                    (issue_id, tagged_username, username, now),
+                    "INSERT INTO issue_contributing_users (issue_id, contributing_username, contributed_by_username, created_at) VALUES (?, ?, ?, ?)",
+                    (issue_id, contributing_username, username, now),
                 )
-            for tagged_username in removed:
+            for contributing_username in removed:
                 con.execute(
-                    "DELETE FROM issue_tagged_users WHERE issue_id = ? AND tagged_username = ?",
-                    (issue_id, tagged_username),
+                    "DELETE FROM issue_contributing_users WHERE issue_id = ? AND contributing_username = ?",
+                    (issue_id, contributing_username),
                 )
             con.execute("UPDATE issues SET updated_at = ? WHERE id = ?", (now, issue_id))
             if added:
-                record_issue_history(con, issue_id, username, "tagged_users_added", tagged_users_summary(added, "Added"), now)
+                record_issue_history(con, issue_id, username, "contributing_users_added", contributing_users_summary(added, "Added"), now)
             if removed:
-                record_issue_history(con, issue_id, username, "tagged_users_removed", tagged_users_summary(removed, "Removed"), now)
+                record_issue_history(con, issue_id, username, "contributing_users_removed", contributing_users_summary(removed, "Removed"), now)
             con.commit()
         else:
             con.commit()
@@ -2403,11 +2459,11 @@ def action_tags_update(form: cgi.FieldStorage, username: str) -> None:
     if added:
         recipients = unique_notification_recipients(added, exclude=username)
         if recipients:
-            notify_issue_event(issue_id, username, recipients, "Tagged user added")
+            notify_issue_event(issue_id, username, recipients, "Contributing user added")
     if removed:
         recipients = unique_notification_recipients(removed, exclude=username)
         if recipients:
-            notify_issue_event(issue_id, username, recipients, "Tagged user removed")
+            notify_issue_event(issue_id, username, recipients, "Contributing user removed")
     redirect(action_url("view", id=issue_id))
 
 
@@ -2438,11 +2494,12 @@ def action_attach(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_attach_submit(form, username)
     issue_id = require_id(form)
+    return_to = previous_page_url(form, action_url("view", id=issue_id))
     with db_connect() as con:
         issue = require_issue_access(con, issue_id, username)
         if issue["status"] != "open":
             raise AppError("Only open issues can have attachments added")
-        if not can_owner_assigned_tagged_or_admin(issue, username, con):
+        if not can_owner_assigned_contributing_or_admin(issue, username, con):
             raise AppError("You are not authorized to attach files to this issue", "403 Forbidden")
     max_upload_mb = MAX_UPLOAD_BYTES / (1024 * 1024)
     max_upload_display = f"{max_upload_mb:g} MB"
@@ -2450,9 +2507,10 @@ def action_attach(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi" enctype="multipart/form-data">
 <input type="hidden" name="action" value="attach_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
+{hidden_return_to(return_to)}
 <p><label>File <input type="file" name="file" required></label></p>
 <p class="notice">Maximum upload size: {h(max_upload_display)}.</p>
-<p><input type="submit" value="Attach file"></p>
+<p class="form-actions"><input type="submit" value="Attach file">{cancel_control(return_to)}</p>
 </form>
 """
     send_headers()
@@ -2483,7 +2541,7 @@ def action_attach_submit(form: cgi.FieldStorage, username: str) -> None:
             raise AppError("Issue not found", "404 Not Found")
         if issue["status"] != "open":
             raise AppError("Only open issues can have attachments added")
-        if not can_owner_assigned_tagged_or_admin(issue, username, con):
+        if not can_owner_assigned_contributing_or_admin(issue, username, con):
             raise AppError("You are not authorized to attach files to this issue", "403 Forbidden")
         now = now_utc_sql()
         cur = con.execute(
@@ -2538,17 +2596,19 @@ def action_download(form: cgi.FieldStorage, username: str) -> None:
     raise ResponseSent()
 
 
-def render_comment_form(issue_id: int, username: str, comment_text: str = "", time_worked: str = "", error: str = "") -> str:
+def render_comment_form(issue_id: int, username: str, comment_text: str = "", time_worked: str = "", error: str = "", return_to: str = "") -> str:
     error_html = f'<p class="error">{h(error)}</p>' if error else ""
+    return_target = return_to or action_url("view", id=issue_id)
     body = f"""
 {error_html}
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="comment_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
+{hidden_return_to(return_target)}
 <p><label>Comment<br><textarea name="comment_text" required autofocus>{h(comment_text)}</textarea></label></p>
 <p><label>Time worked (optional)<br><input type="text" name="time_worked" value="{h(time_worked)}" size="24" placeholder="Examples: 30m, 1.5h, 1d" onfocus="this.dataset.placeholder=this.placeholder;this.placeholder=''" onblur="if(!this.placeholder) this.placeholder=this.dataset.placeholder || 'Examples: 30m, 1.5h, 1d'"></label></p>
 {render_markdown_help_link()}
-<p><input type="submit" value="Add comment"></p>
+<p class="form-actions"><input type="submit" value="Add comment">{cancel_control(return_target)}</p>
 </form>
 """
     return render_page("Add Comment", body, username)
@@ -2564,13 +2624,13 @@ def action_comment(form: cgi.FieldStorage, username: str) -> None:
             raise AppError("Issue not found", "404 Not Found")
         # REGRESSION GUARD: Closed/canceled issue comment forms are admin-only even when the user can view the issue.
         if issue["status"] == "open":
-            allowed = can_owner_assigned_tagged_or_admin(issue, username, con)
+            allowed = can_owner_assigned_contributing_or_admin(issue, username, con)
         else:
             allowed = is_admin(username)
         if not allowed:
             raise AppError("You are not authorized to comment on this issue", "403 Forbidden")
     send_headers()
-    print(render_comment_form(issue_id, username))
+    print(render_comment_form(issue_id, username, return_to=previous_page_url(form, action_url("view", id=issue_id))))
 
 
 def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
@@ -2584,7 +2644,7 @@ def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
         if issue is None:
             raise AppError("Issue not found", "404 Not Found")
         if issue["status"] == "open":
-            allowed = can_owner_assigned_tagged_or_admin(issue, username, con)
+            allowed = can_owner_assigned_contributing_or_admin(issue, username, con)
         else:
             allowed = is_admin(username)
         if not allowed:
@@ -2593,7 +2653,7 @@ def action_comment_submit(form: cgi.FieldStorage, username: str) -> None:
             time_worked_minutes = parse_time_worked_minutes(time_worked_raw)
         except ValueError as exc:
             send_headers(status="400 Bad Request")
-            print(render_comment_form(issue_id, username, comment, time_worked_raw, str(exc)))
+            print(render_comment_form(issue_id, username, comment, time_worked_raw, str(exc), previous_page_url(form, action_url("view", id=issue_id))))
             raise ResponseSent()
         now = now_utc_sql()
         cur = con.execute(
@@ -2614,6 +2674,7 @@ def action_update(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_update_submit(form, username)
     issue_id = require_id(form)
+    return_to = previous_page_url(form, action_url("view", id=issue_id))
     with db_connect() as con:
         issue = fetch_issue(con, issue_id)
         if issue is None:
@@ -2627,10 +2688,11 @@ def action_update(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="update_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
+{hidden_return_to(return_to)}
 <p><label>Title<br><input type="text" name="title" size="80" value="{h(issue['title'])}" required autofocus></label></p>
 <p><label>Description<br><textarea name="description">{h(issue['description'])}</textarea></label></p>
 {render_markdown_help_link()}
-<p><input type="submit" value="Update issue"></p>
+<p class="form-actions"><input type="submit" value="Update issue">{cancel_control(return_to)}</p>
 </form>
 """
     send_headers()
@@ -2783,6 +2845,7 @@ def action_close(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_close_submit(form, username)
     issue_id = require_id(form)
+    return_to = previous_page_url(form, action_url("view", id=issue_id))
     with db_connect() as con:
         issue = fetch_issue(con, issue_id)
         if issue is None:
@@ -2795,9 +2858,10 @@ def action_close(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="close_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
+{hidden_return_to(return_to)}
 <p><label>Closing comment<br><textarea name="closing_comment" autofocus></textarea></label></p>
 {render_markdown_help_link()}
-<p><input type="submit" value="Close issue"></p>
+<p class="form-actions"><input type="submit" value="Close issue">{cancel_control(return_to)}</p>
 </form>
 """
     send_headers()
@@ -2835,6 +2899,7 @@ def action_cancel(form: cgi.FieldStorage, username: str) -> None:
     if method() == "POST":
         return action_cancel_submit(form, username)
     issue_id = require_id(form)
+    return_to = previous_page_url(form, action_url("view", id=issue_id))
     with db_connect() as con:
         issue = fetch_issue(con, issue_id)
         if issue is None:
@@ -2847,9 +2912,10 @@ def action_cancel(form: cgi.FieldStorage, username: str) -> None:
 <form method="post" action="issues.cgi">
 <input type="hidden" name="action" value="cancel_submit">
 <input type="hidden" name="id" value="{h(issue_id)}">
+{hidden_return_to(return_to)}
 <p><label>Cancel comment<br><textarea name="cancel_comment" autofocus></textarea></label></p>
 {render_markdown_help_link()}
-<p><input type="submit" value="Cancel issue"></p>
+<p class="form-actions"><input type="submit" value="Cancel issue">{cancel_control(return_to)}</p>
 </form>
 """
     send_headers()
@@ -3292,7 +3358,7 @@ ACTION_MAP = {
     "history": action_history,
     "create_submit": action_create_submit,
     "assign": action_assign,
-    "tags_update": action_tags_update,
+    "contributing_users_update": action_contributing_users_update,
     "attach_submit": action_attach_submit,
     "download": action_download,
     "comment_submit": action_comment_submit,

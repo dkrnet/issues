@@ -80,13 +80,13 @@ def create_schema(con: sqlite3.Connection) -> None:
             created_at TEXT NOT NULL
         );
 
-        CREATE TABLE issue_tagged_users (
+        CREATE TABLE issue_contributing_users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             issue_id INTEGER NOT NULL,
-            tagged_username TEXT NOT NULL,
-            tagged_by_username TEXT NOT NULL,
+            contributing_username TEXT NOT NULL,
+            contributed_by_username TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            UNIQUE(issue_id, tagged_username)
+            UNIQUE(issue_id, contributing_username)
         );
 
         CREATE TABLE issue_history (
@@ -102,8 +102,8 @@ def create_schema(con: sqlite3.Connection) -> None:
 
         CREATE INDEX idx_comments_issue_id ON comments(issue_id);
         CREATE INDEX idx_attachments_issue_id ON attachments(issue_id);
-        CREATE INDEX idx_issue_tagged_users_issue_user
-        ON issue_tagged_users(issue_id, tagged_username);
+        CREATE INDEX idx_issue_contributing_users_issue_user
+        ON issue_contributing_users(issue_id, contributing_username);
         CREATE INDEX idx_issue_history_issue_id_created_at
         ON issue_history(issue_id, created_at DESC, id DESC);
         """

@@ -1,7 +1,7 @@
 # Copyright (C) 2026 David Redmond
 # SPDX-License-Identifier: AGPL-3.0-only
 #
-"""Requirements mapping: tagged issue participants."""
+"""Requirements mapping: contributing issue participants."""
 
 import subprocess
 
@@ -18,19 +18,19 @@ def _status(parse_headers, output):
 
 
 def _dual_list_html(html):
-    start = html.find('class="dual-listbox tagged-users-dual-list"')
+    start = html.find('class="dual-listbox contributing-users-dual-list"')
     assert start >= 0, html
     end = html.find("</form>", start)
     assert end >= 0, html[start:]
     return html[start:end]
 
 
-def test_create_issue_can_add_multiple_tagged_users(app, patched_environment, make_form, invoke_action, parse_headers, fetch_tagged_users, fetch_history):
+def test_create_issue_can_add_multiple_contributing_users(app, patched_environment, make_form, invoke_action, parse_headers, fetch_contributing_users, fetch_history):
     create_html = _html(parse_headers, invoke_action(app, "create", make_form(action="create"), "alice"))
-    assert 'class="dual-listbox tagged-users-dual-list"' in create_html
+    assert 'class="dual-listbox contributing-users-dual-list"' in create_html
     assert 'class="dual-listbox-available"' in create_html
-    assert 'class="dual-listbox-selected" name="tagged_users"' in create_html
-    assert 'onchange="syncTaggedUsersWithAssignee(this)"' in create_html
+    assert 'class="dual-listbox-selected" name="contributing_users"' in create_html
+    assert 'onchange="syncContributingUsersWithAssignee(this)"' in create_html
     create_dual = _dual_list_html(create_html)
     assert '<option value="bob">bob</option>' in create_dual
     assert '<option value="alice">alice</option>' not in create_dual
@@ -42,11 +42,11 @@ def test_create_issue_can_add_multiple_tagged_users(app, patched_environment, ma
         "create_submit",
         make_form(
             action="create_submit",
-            title="Tagged create",
-            description="Tagged users can track this.",
+            title="Contributing create",
+            description="Contributing users can track this.",
             priority="normal",
             assigned_username="",
-            tagged_users=["bob", "admin"],
+            contributing_users=["bob", "admin"],
         ),
         "alice",
         method="POST",
@@ -54,19 +54,19 @@ def test_create_issue_can_add_multiple_tagged_users(app, patched_environment, ma
     status, headers, _body = parse_headers(output)
     assert status.startswith(("302", "303"))
     issue_id = int(headers["location"].rsplit("id=", 1)[1])
-    assert [row["tagged_username"] for row in fetch_tagged_users(issue_id)] == ["admin", "bob"]
-    assert "tagged_users_added" in [row["action"] for row in fetch_history(issue_id)]
+    assert [row["contributing_username"] for row in fetch_contributing_users(issue_id)] == ["admin", "bob"]
+    assert "contributing_users_added" in [row["action"] for row in fetch_history(issue_id)]
 
     assigned_rejected = invoke_action(
         app,
         "create_submit",
         make_form(
             action="create_submit",
-            title="Assigned tagged create",
-            description="Assignees are not tagged users.",
+            title="Assigned contributing create",
+            description="Assignees are not contributing users.",
             priority="normal",
             assigned_username="bob",
-            tagged_users=["bob"],
+            contributing_users=["bob"],
         ),
         "alice",
         method="POST",
@@ -78,10 +78,10 @@ def test_create_issue_can_add_multiple_tagged_users(app, patched_environment, ma
         "create_submit",
         make_form(
             action="create_submit",
-            title="Bad tagged create",
-            description="Not taggable.",
+            title="Bad contributing create",
+            description="Not contributing candidate.",
             priority="normal",
-            tagged_users=["mallory"],
+            contributing_users=["mallory"],
         ),
         "alice",
         method="POST",
@@ -93,10 +93,10 @@ def test_create_issue_can_add_multiple_tagged_users(app, patched_environment, ma
         "create_submit",
         make_form(
             action="create_submit",
-            title="Excluded tagged create",
+            title="Excluded contributing create",
             description="Excluded users follow assignee rules.",
             priority="normal",
-            tagged_users=["vwboot"],
+            contributing_users=["vwboot"],
         ),
         "alice",
         method="POST",
@@ -104,26 +104,26 @@ def test_create_issue_can_add_multiple_tagged_users(app, patched_environment, ma
     assert "400" in _status(parse_headers, excluded)
 
 
-def test_tagged_users_can_view_list_comment_attach_and_download(app, patched_environment, seed_issue, seed_tagged_user, make_form, invoke_action, parse_headers, fetch_comments, fetch_attachments):
-    issue_id = seed_issue(title="Visible to tagged", creator_username="alice", assigned_username="", status="open")
-    seed_tagged_user(issue_id, "bob")
+def test_contributing_users_can_view_list_comment_attach_and_download(app, patched_environment, seed_issue, seed_contributing_user, make_form, invoke_action, parse_headers, fetch_comments, fetch_attachments):
+    issue_id = seed_issue(title="Visible to contributing", creator_username="alice", assigned_username="", status="open")
+    seed_contributing_user(issue_id, "bob")
 
     list_html = _html(parse_headers, invoke_action(app, "list", user="bob"))
-    assert "Visible to tagged" in list_html
+    assert "Visible to contributing" in list_html
 
     view_html = _html(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "bob"))
-    assert "Visible to tagged" in view_html
+    assert "Visible to contributing" in view_html
     assert "Add comment" in view_html
     assert "Add attachment" in view_html
     assert "Edit Title" not in view_html
     assert "Close" not in view_html
-    assert "Update tagged users" not in view_html
-    assert "Remove me from tagged users" in view_html
+    assert "Update contributing users" not in view_html
+    assert "Remove me from contributing users" in view_html
 
     creator_view = _html(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
-    assert 'select name="add_tagged_users" multiple' not in creator_view
-    assert 'class="dual-listbox tagged-users-dual-list"' in creator_view
-    assert 'name="tagged_users_final"' in creator_view
+    assert 'select name="add_contributing_users" multiple' not in creator_view
+    assert 'class="dual-listbox contributing-users-dual-list"' in creator_view
+    assert 'name="contributing_users_final"' in creator_view
     assert "<p>bob</p>" not in creator_view
     assert "target.appendChild(moving[j])" in creator_view
     assert "sortSelectOptions(target)" in creator_view
@@ -154,71 +154,71 @@ def test_tagged_users_can_view_list_comment_attach_and_download(app, patched_env
     assert b"payload" in body
 
 
-def test_tagged_users_can_remove_only_themselves(app, patched_environment, seed_issue, seed_tagged_user, make_form, invoke_action, parse_headers, fetch_tagged_users, fetch_history):
+def test_contributing_users_can_remove_only_themselves(app, patched_environment, seed_issue, seed_contributing_user, make_form, invoke_action, parse_headers, fetch_contributing_users, fetch_history):
     issue_id = seed_issue(creator_username="alice", assigned_username="", status="open")
-    seed_tagged_user(issue_id, "bob")
-    seed_tagged_user(issue_id, "admin")
+    seed_contributing_user(issue_id, "bob")
+    seed_contributing_user(issue_id, "admin")
 
     forbidden = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), remove_tagged_users="admin"),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), remove_contributing_users="admin"),
         "bob",
         method="POST",
     )
     assert "403" in _status(parse_headers, forbidden)
-    assert [row["tagged_username"] for row in fetch_tagged_users(issue_id)] == ["admin", "bob"]
+    assert [row["contributing_username"] for row in fetch_contributing_users(issue_id)] == ["admin", "bob"]
 
     output = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), remove_tagged_users="bob"),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), remove_contributing_users="bob"),
         "bob",
         method="POST",
     )
     assert _status(parse_headers, output).startswith(("302", "303"))
-    assert [row["tagged_username"] for row in fetch_tagged_users(issue_id)] == ["admin"]
-    assert "tagged_users_removed" in [row["action"] for row in fetch_history(issue_id)]
+    assert [row["contributing_username"] for row in fetch_contributing_users(issue_id)] == ["admin"]
+    assert "contributing_users_removed" in [row["action"] for row in fetch_history(issue_id)]
 
 
-def test_creator_assignee_and_admin_can_add_remove_multiple_tagged_users(app, patched_environment, seed_issue, seed_tagged_user, make_form, invoke_action, parse_headers, fetch_tagged_users):
+def test_creator_assignee_and_admin_can_add_remove_multiple_contributing_users(app, patched_environment, seed_issue, seed_contributing_user, make_form, invoke_action, parse_headers, fetch_contributing_users):
     issue_id = seed_issue(creator_username="alice", assigned_username="", status="open")
-    seed_tagged_user(issue_id, "bob")
+    seed_contributing_user(issue_id, "bob")
 
     output = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), add_tagged_users=["admin"]),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), add_contributing_users=["admin"]),
         "alice",
         method="POST",
     )
     assert _status(parse_headers, output).startswith(("302", "303"))
-    assert [row["tagged_username"] for row in fetch_tagged_users(issue_id)] == ["admin", "bob"]
+    assert [row["contributing_username"] for row in fetch_contributing_users(issue_id)] == ["admin", "bob"]
 
     output = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), remove_tagged_users=["admin", "bob"]),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), remove_contributing_users=["admin", "bob"]),
         "alice",
         method="POST",
     )
     assert _status(parse_headers, output).startswith(("302", "303"))
-    assert fetch_tagged_users(issue_id) == []
+    assert fetch_contributing_users(issue_id) == []
 
     output = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), tagged_users_final_present="1", tagged_users_final=["bob", "admin"]),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), contributing_users_final_present="1", contributing_users_final=["bob", "admin"]),
         "admin",
         method="POST",
     )
     assert _status(parse_headers, output).startswith(("302", "303"))
-    assert [row["tagged_username"] for row in fetch_tagged_users(issue_id)] == ["admin", "bob"]
+    assert [row["contributing_username"] for row in fetch_contributing_users(issue_id)] == ["admin", "bob"]
 
     rejected = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), add_tagged_users=["mallory"]),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), add_contributing_users=["mallory"]),
         "admin",
         method="POST",
     )
@@ -226,8 +226,8 @@ def test_creator_assignee_and_admin_can_add_remove_multiple_tagged_users(app, pa
 
     excluded = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(issue_id), add_tagged_users=["vwboot"]),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(issue_id), add_contributing_users=["vwboot"]),
         "admin",
         method="POST",
     )
@@ -240,15 +240,15 @@ def test_creator_assignee_and_admin_can_add_remove_multiple_tagged_users(app, pa
     assert '<option value="bob">bob</option>' not in assigned_dual
     assigned_rejected = invoke_action(
         app,
-        "tags_update",
-        make_form(action="tags_update", id=str(assigned_issue_id), add_tagged_users=["bob"]),
+        "contributing_users_update",
+        make_form(action="contributing_users_update", id=str(assigned_issue_id), add_contributing_users=["bob"]),
         "admin",
         method="POST",
     )
     assert "400" in _status(parse_headers, assigned_rejected)
 
 
-def test_tagged_users_receive_creator_notifications_and_tag_change_notifications(app, patched_environment, monkeypatch, seed_issue, seed_tagged_user, make_form, invoke_action, fetch_history):
+def test_contributing_users_receive_creator_notifications_and_tag_change_notifications(app, patched_environment, monkeypatch, seed_issue, seed_contributing_user, make_form, invoke_action, fetch_history):
     sent = []
 
     def fake_run(cmd, input=None, check=False):
@@ -258,16 +258,16 @@ def test_tagged_users_receive_creator_notifications_and_tag_change_notifications
     monkeypatch.setattr(app.subprocess, "run", fake_run, raising=False)
     monkeypatch.setattr(app, "EMAIL_NOTIFICATIONS_ENABLED", True, raising=False)
 
-    issue_id = seed_issue(title="Tagged notifications", creator_username="alice", assigned_username="", status="open")
-    seed_tagged_user(issue_id, "bob")
+    issue_id = seed_issue(title="Contributing notifications", creator_username="alice", assigned_username="", status="open")
+    seed_contributing_user(issue_id, "bob")
 
     invoke_action(app, "comment_submit", make_form(action="comment_submit", id=str(issue_id), comment_text="Update"), "admin", method="POST")
     assert b"To: alice, bob" in sent[-1]
 
-    invoke_action(app, "tags_update", make_form(action="tags_update", id=str(issue_id), add_tagged_users=["admin"]), "alice", method="POST")
+    invoke_action(app, "contributing_users_update", make_form(action="contributing_users_update", id=str(issue_id), add_contributing_users=["admin"]), "alice", method="POST")
     assert b"To: admin" in sent[-1]
 
-    invoke_action(app, "tags_update", make_form(action="tags_update", id=str(issue_id), remove_tagged_users="bob"), "alice", method="POST")
+    invoke_action(app, "contributing_users_update", make_form(action="contributing_users_update", id=str(issue_id), remove_contributing_users="bob"), "alice", method="POST")
     assert b"To: bob" in sent[-1]
 
     summaries = [row["summary"] for row in fetch_history(issue_id)]
