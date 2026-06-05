@@ -149,3 +149,28 @@ def test_text_entry_forms_autofocus_top_left_field_but_list_and_view_do_not(app,
     view_html = _html(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
     assert "autofocus" not in list_html.lower()
     assert "autofocus" not in view_html.lower()
+
+
+@pytest.mark.parametrize("action", ["create", "update", "comment", "attach", "close", "cancel"])
+def test_mutating_forms_include_safe_cancel_control(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers, monkeypatch, action):
+    issue_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
+    monkeypatch.setenv("HTTP_REFERER", "https://localhost/issues.cgi?action=list")
+    form = make_form(action=action, id=str(issue_id)) if action != "create" else make_form(action=action)
+
+    html = _html(parse_headers, invoke_action(app, action, form, "alice"))
+
+    assert 'class="button-link cancel-button"' in html
+    assert 'href="/issues.cgi?action=list"' in html
+    assert 'name="return_to" value="/issues.cgi?action=list"' in html
+    assert '<input type="submit" value="Cancel"' not in html
+
+
+def test_cancel_control_falls_back_when_previous_page_is_unsafe(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers, monkeypatch):
+    issue_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
+    monkeypatch.setenv("HTTP_REFERER", "https://example.invalid/issues.cgi?action=list")
+
+    html = _html(parse_headers, invoke_action(app, "comment", make_form(action="comment", id=str(issue_id)), "alice"))
+
+    assert 'class="button-link cancel-button"' in html
+    assert f'href="issues.cgi?action=view&amp;id={issue_id}"' in html
+    assert "example.invalid" not in html

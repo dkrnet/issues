@@ -118,13 +118,13 @@ def temp_db(tmp_path: pathlib.Path) -> pathlib.Path:
                 created_at TEXT NOT NULL
             );
 
-            CREATE TABLE issue_tagged_users (
+            CREATE TABLE issue_contributing_users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 issue_id INTEGER NOT NULL,
-                tagged_username TEXT NOT NULL,
-                tagged_by_username TEXT NOT NULL,
+                contributing_username TEXT NOT NULL,
+                contributed_by_username TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                UNIQUE(issue_id, tagged_username)
+                UNIQUE(issue_id, contributing_username)
             );
 
             CREATE TABLE issue_history (
@@ -141,8 +141,8 @@ def temp_db(tmp_path: pathlib.Path) -> pathlib.Path:
             CREATE INDEX idx_issue_history_issue_id_created_at
                 ON issue_history(issue_id, created_at DESC, id DESC);
 
-            CREATE INDEX idx_issue_tagged_users_issue_user
-                ON issue_tagged_users(issue_id, tagged_username);
+            CREATE INDEX idx_issue_contributing_users_issue_user
+                ON issue_contributing_users(issue_id, contributing_username);
             """
         )
     return db
@@ -625,24 +625,24 @@ def seed_attachment(temp_db: pathlib.Path):
 
 
 @pytest.fixture()
-def seed_tagged_user(temp_db: pathlib.Path):
-    def _seed_tagged_user(issue_id: int, tagged_username: str = "mallory", tagged_by_username: str = "alice", created_at: str = "2026-01-01T12:00:00") -> int:
+def seed_contributing_user(temp_db: pathlib.Path):
+    def _seed_contributing_user(issue_id: int, contributing_username: str = "mallory", contributed_by_username: str = "alice", created_at: str = "2026-01-01T12:00:00") -> int:
         with sqlite3.connect(temp_db) as con:
             cur = con.execute(
-                "INSERT INTO issue_tagged_users (issue_id, tagged_username, tagged_by_username, created_at) VALUES (?, ?, ?, ?)",
-                (issue_id, tagged_username, tagged_by_username, created_at),
+                "INSERT INTO issue_contributing_users (issue_id, contributing_username, contributed_by_username, created_at) VALUES (?, ?, ?, ?)",
+                (issue_id, contributing_username, contributed_by_username, created_at),
             )
             return int(cur.lastrowid)
-    return _seed_tagged_user
+    return _seed_contributing_user
 
 
 @pytest.fixture()
-def fetch_tagged_users(temp_db: pathlib.Path):
+def fetch_contributing_users(temp_db: pathlib.Path):
     def _fetch(issue_id: int) -> List[sqlite3.Row]:
         con = sqlite3.connect(temp_db)
         con.row_factory = sqlite3.Row
         with con:
-            return con.execute("SELECT * FROM issue_tagged_users WHERE issue_id = ? ORDER BY tagged_username", (issue_id,)).fetchall()
+            return con.execute("SELECT * FROM issue_contributing_users WHERE issue_id = ? ORDER BY contributing_username", (issue_id,)).fetchall()
     return _fetch
 
 
