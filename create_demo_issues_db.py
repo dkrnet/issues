@@ -59,6 +59,7 @@ def create_schema(con: sqlite3.Connection) -> None:
             due_date TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
+            state_changed_at TEXT NOT NULL,
             completed_at TEXT
         );
 
@@ -213,14 +214,15 @@ def add_issue(
     due_date: Optional[str],
     created_at: str,
     updated_at: str,
+    state_changed_at: str,
     completed_at: Optional[str] = None,
 ) -> int:
     cur = con.execute(
         """
         INSERT INTO issues
             (title, description, creator_username, assigned_username, priority,
-             pct_complete, state, status, due_date, created_at, updated_at, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             pct_complete, state, status, due_date, created_at, updated_at, state_changed_at, completed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             title,
@@ -234,6 +236,7 @@ def add_issue(
             due_date,
             created_at,
             updated_at,
+            state_changed_at,
             completed_at,
         ),
     )
@@ -260,6 +263,7 @@ def seed_demo(con: sqlite3.Connection, creator: str, creator2: str, tech: str, t
         due_date="2026-06-03",
         created_at=utc(20, 9, 5),
         updated_at=utc(20, 15, 45),
+        state_changed_at=utc(20, 10, 30),
     )
     add_history(con, issue_id, creator, "assigned", f'Changed assignee from "unassigned" to "{tech}"', utc(20, 9, 8))
     add_email_history(con, issue_id, creator, tech, utc(20, 9, 9))
@@ -303,6 +307,7 @@ def seed_demo(con: sqlite3.Connection, creator: str, creator2: str, tech: str, t
         due_date="2026-06-07",
         created_at=utc(21, 8, 20),
         updated_at=utc(22, 11, 50),
+        state_changed_at=utc(22, 11, 55),
     )
     add_history(con, issue_id, creator2, "assigned", f'Changed assignee from "unassigned" to "{tech2}"', utc(21, 8, 25))
     add_email_history(con, issue_id, creator2, tech2, utc(21, 8, 26))
@@ -345,6 +350,7 @@ def seed_demo(con: sqlite3.Connection, creator: str, creator2: str, tech: str, t
         due_date="2026-05-24",
         created_at=utc(23, 7, 55),
         updated_at=utc(23, 16, 40),
+        state_changed_at=utc(23, 16, 35),
         completed_at=utc(23, 16, 40),
     )
     add_history(con, issue_id, creator, "assigned", f'Changed assignee from "unassigned" to "{tech}"', utc(23, 8, 0))
@@ -389,6 +395,7 @@ def seed_demo(con: sqlite3.Connection, creator: str, creator2: str, tech: str, t
         due_date="2026-06-10",
         created_at=utc(24, 10, 5),
         updated_at=utc(25, 9, 40),
+        state_changed_at=utc(25, 9, 40),
     )
     add_history(con, issue_id, creator2, "assigned", f'Changed assignee from "unassigned" to "{tech}"', utc(24, 10, 10))
     add_email_history(con, issue_id, creator2, tech, utc(24, 10, 11))
@@ -428,6 +435,7 @@ def seed_demo(con: sqlite3.Connection, creator: str, creator2: str, tech: str, t
         due_date="2026-06-01",
         created_at=utc(26, 12, 0),
         updated_at=utc(26, 12, 0),
+        state_changed_at=utc(26, 12, 0),
     )
     add_history(con, issue_id, creator, "due_date_changed", 'Changed due date from "blank" to "2026-06-01"', utc(26, 12, 5))
 

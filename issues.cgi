@@ -70,7 +70,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 DB_FILE = "/var/lib/issues/issues.db"
 DEFAULT_CLOSING_COMMENT = "no comment provided"
-ISSUES_VERSION = "1.0.0-dev.11+0b098dd"
+ISSUES_VERSION = "1.0.0-dev.12+d94c448"
 MAX_UPLOAD_BYTES = 10485760
 ASSIGNEE_GROUP = "users"
 ASSIGNEE_EXCLUDE = ""
@@ -1121,6 +1121,15 @@ def timestamp_html(value: Any) -> str:
     )
 
 
+def elapsed_time_worked(start_value: Any, end_value: Optional[Any] = None) -> str:
+    start_dt = timestamp_utc_datetime(start_value)
+    end_dt = timestamp_utc_datetime(end_value) if end_value is not None else _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0)
+    if start_dt is None or end_dt is None:
+        return ""
+    elapsed_minutes = max(0, int((end_dt - start_dt).total_seconds() // 60))
+    return labeled_time_worked(elapsed_minutes)
+
+
 TIME_WORKED_UNITS = {
     "m": Decimal("1"),
     "min": Decimal("1"),
@@ -2159,30 +2168,35 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         ("Priority", priority_cell),
         ("Percent complete", percent_cell),
         ("State", state_cell),
+        ("Time in current state", (elapsed_time_worked(issue["state_changed_at"] or issue["created_at"]) + " (wall clock)") if open_issue else ""),
         ("Status", issue["status"]),
         ("Due date", due_cell),
         ("Created", timestamp_html(issue["created_at"])),
         ("Updated", timestamp_html(issue["updated_at"])),
     ]
     if int(total_time_worked or 0) > 0:
-        rows.insert(8, ("Total time worked", labeled_time_worked(total_time_worked)))
+        rows.insert(8, ("Total time worked", f"{labeled_time_worked(total_time_worked)} (work time)"))
     if issue["status"] in ISSUE_TERMINAL_STATUSES:
         rows.append(("Completed", timestamp_html(issue["completed_at"])))
 
     contributing_display = display_usernames(contributing_users) if contributing_users else "none"
     rows.append(("Contributing users", contributing_display))
 
-    meta = "<table class='issue-metadata-table'>" + "".join(
-        f"<tr><th>{h(label)}</th><td>{value if label in {'Assignee','Priority','Percent complete','State','Due date','Created','Updated','Completed'} else h(value)}</td></tr>"
-        for label, value in rows
-    ) + "</table>"
+    meta_rows = []
+    for label, value in rows:
+        if label == "Time in current state" and not open_issue:
+            continue
+        meta_rows.append(
+            f"<tr><th>{h(label)}</th><td>{value if label in {'Assignee','Priority','Percent complete','State','Due date','Created','Updated','Completed','Time in current state'} else h(value)}</td></tr>"
+        )
+    meta = "<table class='issue-metadata-table'>" + "".join(meta_rows) + "</table>"
 
     comments_html = ["<div class='section'><h2>Comments</h2>"]
     if comments:
         for c in comments:
             time_worked = ""
             if c["time_worked_minutes"] is not None:
-                time_worked = f" (Time worked: {h(labeled_time_worked(c['time_worked_minutes']))})"
+                time_worked = f" (Time worked: {h(labeled_time_worked(c['time_worked_minutes']))} (work time))"
             comments_html.append(
                 f"<article><div class='comment-meta'>{h(display_username(c['commenter_username']))} at {timestamp_html(c['created_at'])}{time_worked}</div>"
                 f"<div class='markdown-body'>{markdown_to_html(c['comment_text'])}</div></article>"
@@ -2289,9 +2303,9 @@ def action_create_submit(form: cgi.FieldStorage, username: str) -> None:
     with db_connect() as con:
         cur = con.execute(
             """INSERT INTO issues
-               (title, description, creator_username, assigned_username, priority, pct_complete, state, status, due_date, created_at, updated_at, completed_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (title, description, username, assignee or "", priority, 0, STATES[0], "open", due_date, now, now, None),
+               (title, description, creator_username, assigned_username, priority, pct_complete, state, status, due_date, created_at, updated_at, state_changed_at, completed_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (title, description, username, assignee or "", priority, 0, STATES[0], "open", due_date, now, now, now, None),
         )
         issue_id = int(cur.lastrowid)
         record_issue_history(con, issue_id, username, "created", "Created issue", now)
@@ -2768,9 +2782,9 @@ def action_set_state(form: cgi.FieldStorage, username: str) -> None:
         now = now_utc_sql()
         old_state = issue["state"]
         if state == "complete":
-            con.execute("UPDATE issues SET state = ?, pct_complete = 100, updated_at = ? WHERE id = ?", (state, now, issue_id))
+            con.execute("UPDATE issues SET state = ?, pct_complete = 100, updated_at = ?, state_changed_at = ? WHERE id = ?", (state, now, now, issue_id))
         else:
-            con.execute("UPDATE issues SET state = ?, updated_at = ? WHERE id = ?", (state, now, issue_id))
+            con.execute("UPDATE issues SET state = ?, updated_at = ?, state_changed_at = ? WHERE id = ?", (state, now, now, issue_id))
         record_issue_history(con, issue_id, username, "state_changed", history_change_summary("state", old_state, state), now)
         con.commit()
     redirect(action_url("view", id=issue_id))
@@ -2817,7 +2831,7 @@ def action_close_submit(form: cgi.FieldStorage, username: str) -> None:
             raise AppError("You are not authorized to close this issue", "403 Forbidden")
         now = now_utc_sql()
         # REQUIREMENTS: Closing an issue makes the workflow state complete, which also makes percent complete 100.
-        con.execute("UPDATE issues SET status = 'closed', state = 'complete', pct_complete = 100, completed_at = ?, updated_at = ? WHERE id = ?", (now, now, issue_id))
+        con.execute("UPDATE issues SET status = 'closed', state = 'complete', pct_complete = 100, completed_at = ?, updated_at = ?, state_changed_at = ? WHERE id = ?", (now, now, now, issue_id))
         cur = con.execute(
             "INSERT INTO comments (issue_id, commenter_username, comment_text, created_at) VALUES (?, ?, ?, ?)",
             (issue_id, username, comment, now),

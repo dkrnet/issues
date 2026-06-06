@@ -17,7 +17,7 @@ def test_test_database_schema_matches_requirements(temp_db):
         assert issue_cols == [
             "id", "title", "description", "creator_username", "assigned_username",
             "priority", "pct_complete", "state", "status", "due_date",
-            "created_at", "updated_at", "completed_at",
+            "created_at", "updated_at", "state_changed_at", "completed_at",
         ]
         comment_cols = [row[1] for row in con.execute("PRAGMA table_info(comments)")]
         assert comment_cols == [

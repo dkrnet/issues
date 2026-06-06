@@ -279,6 +279,7 @@ Stores the main issue records.
 - `due_date` - due date value
 - `created_at` - creation timestamp
 - `updated_at` - last update timestamp
+- `state_changed_at` - timestamp of the most recent workflow-state change
 - `completed_at` - completion timestamp when the issue is closed or canceled
 
 ### Schema behavior implied by the application
@@ -289,7 +290,14 @@ Stores the main issue records.
 - `status` uses values from `STATUSES`.
 - `pct_complete` stores an integer percentage value.
 - `due_date` stores a date value that the application formats as `YYYY-MM-DD`.
-- `created_at`, `updated_at`, and `completed_at` store timestamp values.
+- `created_at`, `updated_at`, `state_changed_at`, and `completed_at` store timestamp values.
+- `state_changed_at` is initialized when the issue is created and is updated whenever the issue's workflow state changes.
+- The issue view page shows `Time in current state` only for open issues, immediately after the `State` row, using the elapsed wall-clock time since `state_changed_at`.
+- The issue view page appends `(wall clock)` to `Time in current state`.
+- If `state_changed_at` is unavailable in an older database row, the application falls back to `created_at` for display rather than omitting the field.
+- The issue view page displays `Total time worked` and comment-level time worked using submitted work-time values, not wall-clock elapsed time.
+- The issue view page appends `(work time)` to `Total time worked` and to comment-level time worked displays.
+- No conversion between wall-clock time and work-time accounting is performed for these display values.
 
 ---
 
@@ -628,7 +636,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue view page title displays the issue id and issue title in the form `Issue N - Title`.
 - The issue metadata table displays total time worked between the Status and Due date rows only when the total time worked is greater than 0 minutes.
 - The issue total time worked is calculated from all saved time-worked entries for the issue across all actors.
-- Comment metadata displays saved time worked in compact form at the end of the metadata line, for example `Alice Adams at 2026-06-03 14:25:10 PDT (Time worked: 2 hours, 30 minutes)`.
+- Comment metadata displays saved time worked in compact form at the end of the metadata line, for example `Alice Adams at 2026-06-03 14:25:10 PDT (Time worked: 2 hours, 30 minutes (work time))`.
 - The acting user requires access to the issue: the acting user is the issue creator, assigned user, contributing user, or a system administrator.
 - **Edit Title & Description** displays only when the issue is open and the acting user is the issue owner or a system administrator.
 - **Close** displays only when the issue is open and the acting user is the issue owner, the assigned user, or a system administrator.

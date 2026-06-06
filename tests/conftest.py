@@ -97,6 +97,7 @@ def temp_db(tmp_path: pathlib.Path) -> pathlib.Path:
                 due_date TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
+                state_changed_at TEXT NOT NULL,
                 completed_at TEXT
             );
 
@@ -581,6 +582,7 @@ def seed_issue(temp_db: pathlib.Path):
             "due_date": None,
             "created_at": now,
             "updated_at": now,
+            "state_changed_at": now,
             "completed_at": None,
         }
         row.update(overrides)
@@ -589,10 +591,10 @@ def seed_issue(temp_db: pathlib.Path):
                 """
                 INSERT INTO issues
                 (title, description, creator_username, assigned_username, priority,
-                 pct_complete, state, status, due_date, created_at, updated_at, completed_at)
+                 pct_complete, state, status, due_date, created_at, updated_at, state_changed_at, completed_at)
                 VALUES
                 (:title, :description, :creator_username, :assigned_username, :priority,
-                 :pct_complete, :state, :status, :due_date, :created_at, :updated_at, :completed_at)
+                 :pct_complete, :state, :status, :due_date, :created_at, :updated_at, :state_changed_at, :completed_at)
                 """,
                 row,
             )

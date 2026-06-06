@@ -109,13 +109,13 @@ def test_subprocess_cgi_smoke_blank_search_submission_clears_saved_search(issues
 
     with sqlite3.connect(temp_db) as con:
         con.execute(
-            "INSERT INTO issues (title, description, creator_username, assigned_username, priority, pct_complete, state, status, due_date, created_at, updated_at, completed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), NULL)",
+            "INSERT INTO issues (title, description, creator_username, assigned_username, priority, pct_complete, state, status, due_date, created_at, updated_at, state_changed_at, completed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), NULL)",
             ("Printer queue failure", "Routine description", username, "", "normal", 0, "not started", "open", ""),
         )
         con.execute(
-            "INSERT INTO issues (title, description, creator_username, assigned_username, priority, pct_complete, state, status, due_date, created_at, updated_at, completed_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), NULL)",
+            "INSERT INTO issues (title, description, creator_username, assigned_username, priority, pct_complete, state, status, due_date, created_at, updated_at, state_changed_at, completed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now'), NULL)",
             ("Unrelated issue", "Routine description", username, "", "normal", 0, "not started", "open", ""),
         )
 

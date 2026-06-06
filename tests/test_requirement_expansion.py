@@ -211,6 +211,42 @@ def test_issue_view_metadata_ordering_timestamps_blank_due_and_consistent_action
     assert "<a " not in actions.lower()
 
 
+def test_issue_view_time_in_current_state_is_open_only_and_follows_state_row(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers):
+    open_id = seed_issue(
+        status="open",
+        state="in progress",
+        created_at="2026-01-01T12:00:00+00:00",
+        updated_at="2026-01-01T12:10:00+00:00",
+        state_changed_at="2026-01-01T12:05:00+00:00",
+    )
+    closed_id = seed_issue(
+        status="closed",
+        state="complete",
+        created_at="2026-01-01T12:00:00+00:00",
+        updated_at="2026-01-01T12:10:00+00:00",
+        state_changed_at="2026-01-01T12:05:00+00:00",
+        completed_at="2026-01-01T12:10:00+00:00",
+    )
+    canceled_id = seed_issue(
+        status="canceled",
+        state="complete",
+        created_at="2026-01-01T12:00:00+00:00",
+        updated_at="2026-01-01T12:10:00+00:00",
+        state_changed_at="2026-01-01T12:05:00+00:00",
+        completed_at="2026-01-01T12:10:00+00:00",
+    )
+
+    open_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(open_id)), "alice"))
+    closed_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(closed_id)), "alice"))
+    canceled_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(canceled_id)), "alice"))
+
+    assert "Time in current state" in open_html
+    assert "(wall clock)" in open_html
+    assert open_html.find("<th>State</th>") < open_html.find("<th>Time in current state</th>") < open_html.find("<th>Status</th>")
+    assert "Time in current state" not in closed_html
+    assert "Time in current state" not in canceled_html
+
+
 def test_issue_view_role_controls_are_precise_for_open_and_closed_issues(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers):
     open_id = seed_issue(creator_username="alice", assigned_username="bob", status="open")
     closed_id = seed_issue(creator_username="alice", assigned_username="bob", status="closed", completed_at="2026-01-01T12:00:00+00:00")
@@ -429,10 +465,12 @@ def test_comment_time_worked_parsing_storage_invalid_preservation_and_display(ap
 
     seed_comment(issue_id, text="Older work", user="bob", created_at="2026-01-01T11:00:00+00:00", time_worked_minutes=2490)
     view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
-    assert view_html.find(">Status<") < view_html.find(">Total time worked<") < view_html.find(">Due date<")
-    assert "1 week, 0 days, 4 hours, 0 minutes" in view_html
-    assert "Time worked: 2 hours, 30 minutes" in view_html
-    assert "Time worked: 1 week, 0 days, 1 hour, 30 minutes" in view_html
+    assert view_html.find(">State<") < view_html.find(">Time in current state<") < view_html.find(">Total time worked<") < view_html.find(">Status<")
+    assert "(wall clock)" in view_html
+    assert "(work time)" in view_html
+    assert "1 week, 0 days, 4 hours, 0 minutes (work time)" in view_html
+    assert "Time worked: 2 hours, 30 minutes (work time)" in view_html
+    assert "Time worked: 1 week, 0 days, 1 hour, 30 minutes (work time)" in view_html
 
 
 def test_issue_view_omits_total_time_worked_when_no_time_is_logged(app, patched_environment, seed_issue, seed_comment, make_form, invoke_action, parse_headers):

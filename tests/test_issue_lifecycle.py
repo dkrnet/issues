@@ -69,6 +69,33 @@ def test_creator_can_cancel_open_issue(app, patched_environment, seed_issue, mak
     assert row["completed_at"]
 
 
+def test_state_change_timestamp_tracks_creation_changes_and_close(app, patched_environment, make_form, invoke_action, fetch_issue, temp_db, monkeypatch):
+    times = iter([
+        "2026-01-01T12:00:00+00:00",
+        "2026-01-01T12:10:00+00:00",
+        "2026-01-01T12:20:00+00:00",
+        "2026-01-01T12:30:00+00:00",
+    ])
+
+    monkeypatch.setattr(app, "now_utc_sql", lambda: next(times), raising=False)
+
+    invoke_action(app, "create", make_form(action="create", title="State time", description="desc", priority="normal", assigned_username="bob"), "alice", method="POST")
+    with sqlite3.connect(temp_db) as con:
+        issue_id = con.execute("SELECT id FROM issues WHERE title = ?", ("State time",)).fetchone()[0]
+
+    row = fetch_issue(issue_id)
+    assert row["state_changed_at"] == "2026-01-01T12:00:00+00:00"
+
+    invoke_action(app, "set_state", make_form(action="set_state", id=str(issue_id), state="in progress"), "bob", method="POST")
+    row = fetch_issue(issue_id)
+    assert row["state_changed_at"] == "2026-01-01T12:10:00+00:00"
+
+    invoke_action(app, "close", make_form(action="close", id=str(issue_id), closing_comment="done"), "alice", method="POST")
+    row = fetch_issue(issue_id)
+    assert row["state_changed_at"] == "2026-01-01T12:20:00+00:00"
+    assert row["status"] == "closed"
+
+
 def test_admin_can_reopen_closed_issue(app, patched_environment, seed_issue, make_form, invoke_action, parse_headers, fetch_issue):
     issue_id = seed_issue(creator_username="alice", assigned_username="bob", status="closed", completed_at="2026-01-01T12:10:00")
     form = make_form(action="reopen", id=str(issue_id), issue_id=str(issue_id), comment="reopen")

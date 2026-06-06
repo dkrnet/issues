@@ -375,7 +375,9 @@ Notification failures are logged server-side and do not roll back or block the i
 
 Issue descriptions and comments support Markdown rendering.
 
-Comment forms include an optional **Time worked** field. Values default to hours when no unit is provided and may use minutes, hours, or days. Compact examples include `30m`, `1.5h`, and `1d`. Saved time-worked values appear in compact comment metadata, such as `Time worked: 2 hours, 30 minutes`, and the issue view displays the total time worked for the issue.
+Comment forms include an optional **Time worked** field. Values default to hours when no unit is provided and may use minutes, hours, or days. Compact examples include `30m`, `1.5h`, and `1d`. Saved time-worked values are submitted work-time entries and appear in compact comment metadata, such as `Time worked: 2 hours, 30 minutes (work time)`, and the issue view displays the total time worked for the issue as submitted work time.
+
+The issue view also shows `Time in current state` for open issues as wall-clock elapsed time, with the parenthetical `(wall clock)`. The two displays are intentionally distinct.
 
 The Markdown help page is available from Markdown-enabled forms. It includes examples for:
 
@@ -450,4 +452,3 @@ The tests use a temporary database, temporary configuration directory, and fake 
 `requirements.md` is the authoritative application requirements document.
 
 `regression_testing_requirements.md` describes the expected regression test coverage.
-

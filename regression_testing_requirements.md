@@ -188,6 +188,7 @@ CREATE TABLE issues (
     due_date TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
+    state_changed_at TEXT NOT NULL,
     completed_at TEXT
 );
 ```
@@ -602,6 +603,12 @@ The tests shall verify:
 - The issue list table headings are displayed in this order: ID, Title, Status, Due, Priority, Creator, Assignee, State, % Complete, Comments, Attachments, Updated.
 - The issue list table includes the column heading `Assignee`, not `Assigned`.
 - The issue view metadata table includes the row label `Assignee`, not `Assigned`.
+- The issue view metadata table shows `Time in current state` only for open issues and places it immediately after `State`.
+- The issue view metadata table appends `(wall clock)` to `Time in current state`.
+- The issue view metadata table appends `(work time)` to `Total time worked`.
+- Comment metadata appends `(work time)` to saved time-worked text.
+- The parenthetical display text does not change the open-only behavior of `Time in current state`.
+- Closed and canceled issue views still do not display `Time in current state`.
 - Create and assignment forms use the label `Assignee`, not `Assigned user`.
 - The issue list table includes the column heading `Due`, matching the Due filter label.
 - Seeded issues with multiple ids are displayed in descending issue id order.
@@ -885,7 +892,7 @@ The tests shall verify:
 - The description section is present.
 - The comments section is present.
 - The attachments section is present.
-- Total time worked displays between the Status and Due date metadata rows when total time worked is greater than 0 minutes.
+- Total time worked displays between the Status and Due date metadata rows when total time worked is greater than 0 minutes and includes `(work time)`.
 - Total time worked does not display when total time worked is 0 minutes.
 - Total time worked is calculated from all saved comment time-worked entries for the issue.
 - Total time worked uses labeled compact format and includes trailing zero-value units required by the selected display range.
