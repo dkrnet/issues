@@ -70,7 +70,7 @@ from urllib.parse import parse_qs, urlencode, urlsplit
 
 DB_FILE = "/var/lib/issues/issues.db"
 DEFAULT_CLOSING_COMMENT = "no comment provided"
-ISSUES_VERSION = "1.0.0-dev.12+d94c448"
+ISSUES_VERSION = "1.0.0"
 MAX_UPLOAD_BYTES = 10485760
 ASSIGNEE_GROUP = "users"
 ASSIGNEE_EXCLUDE = ""
