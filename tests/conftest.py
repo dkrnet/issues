@@ -251,7 +251,7 @@ def patched_environment(
     values = {
         "DB_FILE": str(temp_db),
         "DEFAULT_CLOSING_COMMENT": "no comment provided",
-        "ISSUES_VERSION": "1.0.0",
+        "ISSUES_VERSION": "1.0.1",
         "PER_USER_CONFIG_DIR": str(temp_config_dir),
         "ASSIGNEE_GROUP": "users",
         "ASSIGNEE_EXCLUDE": "vwboot",
