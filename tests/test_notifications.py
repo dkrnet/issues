@@ -89,7 +89,7 @@ def test_due_close_cancel_reopen_notifications_use_required_recipients(app, patc
     monkeypatch.setattr(app, "EMAIL_NOTIFICATIONS_ENABLED", True, raising=False)
 
     issue_id = seed_issue(title="Notify due close reopen", creator_username="alice", assigned_username="bob", status="open", due_date="2026-06-01")
-    invoke_action(app, "set_due_date", make_form(action="set_due_date", id=str(issue_id), due_date="2026-06-30"), "alice", method="POST")
+    invoke_action(app, "set_due_date", make_form(action="set_due_date", id=str(issue_id), due_date="2099-06-30"), "alice", method="POST")
     invoke_action(app, "close_submit", make_form(action="close_submit", id=str(issue_id), closing_comment="Done"), "bob", method="POST")
     invoke_action(app, "reopen", make_form(action="reopen", id=str(issue_id), comment="Needs more work"), "admin", method="POST")
     invoke_action(app, "cancel_submit", make_form(action="cancel_submit", id=str(issue_id), cancel_comment="Canceling"), "alice", method="POST")
