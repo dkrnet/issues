@@ -516,6 +516,8 @@ To rebuild the application from scratch, the database must provide:
 - Each search-history term includes a right-justified trash/delete control.
 - Trash/delete controls use a darker unobtrusive color, are not black, and remain large enough to read clearly.
 - Activating a search-history term trash/delete control removes that term from the acting user's search history.
+- If the removed search-history term is also the active list search, removal clears the active and saved search before redirecting so the deleted term is not reapplied or re-added to history.
+- Removing a search-history term other than the active list search preserves the active search and all other list filters.
 - The bottom of the search-history pane includes a button to clear the acting user's search history.
 - Pressing Enter while focus is in the Search field submits the list filter form and applies the search.
 - Clearing the Search field and pressing Enter clears the active search and clears the saved search preference.

@@ -438,8 +438,24 @@ def test_search_history_is_rolling_newest_first_clickable_removable_and_clearabl
     status, headers, _body = parse_headers(removed)
     assert status.startswith(("302", "303"))
     assert "action=list" in headers["location"]
+    assert "search=" in headers["location"]
+    assert "term-5" not in headers["location"]
     saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
     assert "term-5" not in saved["search_history"]
+    assert saved["search"] == ""
+
+    unrelated_removed = invoke_action(
+        app,
+        "search_history_remove",
+        make_form(action="search_history_remove", status="any", priority="any", search="term-3", term="term-4"),
+        "alice",
+    )
+    status, headers, _body = parse_headers(unrelated_removed)
+    assert status.startswith(("302", "303"))
+    assert "search=term-3" in headers["location"]
+    saved = json.loads((temp_config_dir / "alice.json").read_text(encoding="utf-8"))
+    assert saved["search"] == "term-3"
+    assert "term-4" not in saved["search_history"]
 
     invoke_action(
         app,
