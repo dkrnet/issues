@@ -342,6 +342,7 @@ h2, .section-heading {{ margin: 1.25rem 0 0.6rem; font-size: 1.35rem; line-heigh
 h3 {{ margin: 1rem 0 0.45rem; font-size: 1.05rem; line-height: 1.3; }}
 .metadata-text, .comment-meta, .current-user, .notice, .last-refreshed {{ color: #555; }}
 .comment-meta {{ margin: 1rem 0 0.35rem; font-size: 0.9rem; line-height: 1.35; font-weight: 600; }}
+.comment-time-worked {{ margin: 0 0 0.35rem; color: #555; font-size: 0.9rem; line-height: 1.35; }}
 .current-user {{ color: #555; text-align: right; white-space: nowrap; }}
 .current-user strong {{ font-weight: bold; color: #333; }}
 .logout-wrapper {{ margin-left: 0.4em; }}
@@ -2196,9 +2197,13 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
         for c in comments:
             time_worked = ""
             if c["time_worked_minutes"] is not None:
-                time_worked = f" (Time worked: {h(labeled_time_worked(c['time_worked_minutes']))} (work time))"
+                time_worked = (
+                    f"<div class='comment-time-worked'>"
+                    f"Time worked: {h(labeled_time_worked(c['time_worked_minutes']))} (work time)"
+                    "</div>"
+                )
             comments_html.append(
-                f"<article><div class='comment-meta'>{h(display_username(c['commenter_username']))} at {timestamp_html(c['created_at'])}{time_worked}</div>"
+                f"<article><div class='comment-meta'>{h(display_username(c['commenter_username']))} at {timestamp_html(c['created_at'])}</div>{time_worked}"
                 f"<div class='markdown-body'>{markdown_to_html(c['comment_text'])}</div></article>"
             )
     else:
