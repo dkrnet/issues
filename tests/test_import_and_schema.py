@@ -3,10 +3,37 @@
 #
 """Requirements mapping: import behavior, syntax checking, and temporary database schema."""
 import sqlite3
+from pathlib import Path
 
 
 def test_issues_cgi_syntax_check_passes(syntax_check):
     assert syntax_check.name == "issues.cgi"
+
+
+def test_apache_form_auth_example_scopes_distinct_issue_sessions():
+    config = (Path(__file__).resolve().parents[1] / "issues-form-auth.conf.example").read_text(encoding="utf-8")
+    first_location = config.index("<Location")
+    server_scope = config[:first_location]
+    assert '<Location "/issues-login">' in config
+    assert '<Location "/login">' not in config
+    assert "Session On" not in server_scope
+    assert "SessionCookieName" not in server_scope
+    assert "SessionMaxAge" not in server_scope
+
+    locations = {
+        path: config.split(f'<Location "{path}">', 1)[1].split("</Location>", 1)[0]
+        for path in ("/issues-login", "/cgi-bin/issues.cgi", "/issues-logout")
+    }
+    for block in locations.values():
+        assert "Session On" in block
+        assert "SessionCookieName issues_session path=/;httponly;secure;samesite=Strict" in block
+        assert "SessionMaxAge 28800" in block
+
+
+def test_build_artifact_includes_apache_form_auth_example(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    for name in ("issues.cgi", "issues-form-auth.conf.example", "README.md", "requirements.md", "regression_testing_requirements.md", "build.sh"):
+        assert (repo_root / name).is_file()
 
 
 def test_test_database_schema_matches_requirements(temp_db):
@@ -67,7 +94,7 @@ AUTO_REFRESH_OPTIONS=bad
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(app, "AUTH_FORM_ACTION", "/login", raising=False)
+    monkeypatch.setattr(app, "AUTH_FORM_ACTION", "/issues-login", raising=False)
     monkeypatch.setattr(app, "LOGOUT_URL", "/issues-logout", raising=False)
     monkeypatch.setattr(app, "ISSUES_PER_PAGE", 25, raising=False)
     monkeypatch.setattr(app, "AUTO_REFRESH_OPTIONS", ("never", "5 minutes"), raising=False)
@@ -91,7 +118,7 @@ AUTO_REFRESH_OPTIONS=bad
     assert app.ISSUE_BASE_URL == "https://issues.example.test/cgi-bin/issues.cgi"
     assert app.NOTIFICATION_TRIAGE_RECIPIENTS == "root,@wheel,helpdesk"
     assert app.NOTIFICATION_BODY_MAX_CHARS == 2048
-    assert app.AUTH_FORM_ACTION == "/login"
+    assert app.AUTH_FORM_ACTION == "/issues-login"
     assert app.LOGOUT_URL == "/issues-logout"
     assert app.ISSUES_PER_PAGE == 25
     assert app.AUTO_REFRESH_OPTIONS == ("never", "5 minutes")
