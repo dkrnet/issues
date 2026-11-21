@@ -261,7 +261,7 @@ def patched_environment(
         "MAX_FILENAME_LEN": 255,
         "BANNER_FILE": "",
         "BANNER_DIMENSIONS": "",
-        "AUTH_FORM_ACTION": "/login",
+        "AUTH_FORM_ACTION": "/issues-login",
         "AUTH_FORM_USERNAME_FIELD": "httpd_username",
         "AUTH_FORM_PASSWORD_FIELD": "httpd_password",
         "AUTH_FORM_LOCATION_FIELD": "httpd_location",

@@ -556,6 +556,11 @@ The tests shall verify:
 - The login page includes the favicon link.
 - The login page includes a form with method `post`.
 - The login form action matches `AUTH_FORM_ACTION`.
+- The built-in `AUTH_FORM_ACTION` default is `/issues-login` and the rendered login form posts to `/issues-login`.
+- The Apache form-auth example contains `<Location "/issues-login">` and does not contain `<Location "/login">`.
+- No `Session On`, `SessionCookieName`, or `SessionMaxAge` directives appear before the first Apache `<Location>` block.
+- Each of `/issues-login`, `/cgi-bin/issues.cgi`, and `/issues-logout` has the Issues `issues_session` cookie name and `SessionMaxAge 28800` scoped within its location.
+- The repository build/release artifact includes `issues-form-auth.conf.example` with the updated authentication endpoint and scoped session settings.
 - The username input name matches `AUTH_FORM_USERNAME_FIELD`.
 - The password input name matches `AUTH_FORM_PASSWORD_FIELD`.
 - The destination input name matches `AUTH_FORM_LOCATION_FIELD`.

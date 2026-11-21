@@ -420,6 +420,8 @@ A typical deployment requires:
 7. If notification email will be used, configure and test the local mail system and sendmail-compatible command.
 8. Verify the application loads at `/cgi-bin/issues.cgi`.
 
+For form-based authentication, install and review `issues-form-auth.conf.example`. Issues uses `/issues-login`, `/issues-logout`, and the `issues_session` cookie so its endpoints and session cookie remain distinct from other CGI applications on the same virtual host. Set `AUTH_FORM_ACTION=/issues-login` in `/etc/issues.conf` when using this configuration. Keep the session directives inside the three Issues `<Location>` blocks. Validate the Apache configuration (for example, with `apachectl configtest`) and reload Apache after updating it. Apache validates credentials and passes the username through `REMOTE_USER`; Issues never reads or stores passwords.
+
 Example permissions vary by site policy, but the Apache runtime user must be able to read/write the database and per-user configuration directory.
 
 ## Regression tests

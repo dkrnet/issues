@@ -79,7 +79,7 @@ def test_login_page_uses_configured_external_form_fields_without_authentication_
     html = _html(parse_headers, output)
     lower = html.lower()
     assert 'method="post"' in lower
-    assert 'action="/login"' in lower
+    assert 'action="/issues-login"' in lower
     assert 'name="httpd_username"' in lower
     assert 'name="httpd_password"' in lower
     assert 'type="password"' in lower

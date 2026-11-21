@@ -81,7 +81,7 @@ BANNER_FILE - empty string
 BANNER_DIMENSIONS - empty string
 FAVICON_MIME_TYPE - `image/x-icon`
 EMBEDDED_FAVICON_BASE64 - embedded icon data kept at the end of `issues.cgi`
-AUTH_FORM_ACTION - `/login`
+AUTH_FORM_ACTION - `/issues-login`
 AUTH_FORM_USERNAME_FIELD - `httpd_username`
 AUTH_FORM_PASSWORD_FIELD - `httpd_password`
 AUTH_FORM_LOCATION_FIELD - `httpd_location`
@@ -228,6 +228,10 @@ SEARCH_HISTORY_LIMIT - `10`
 - When a request omits the `action` parameter and `REMOTE_USER` is present, the application uses `list` as the default action.
 - When a protected action is requested without `REMOTE_USER`, the application redirects to the public login action and includes the originally requested safe application URL in the login destination field.
 - The `login` action renders a login form that posts to `AUTH_FORM_ACTION`.
+- `AUTH_FORM_ACTION` defaults to `/issues-login`, distinct from other applications' authentication endpoints on the same virtual host.
+- The form-authentication Apache example uses the distinct `/issues-login` endpoint, `/issues-logout` logout endpoint, and `issues_session` cookie name.
+- Apache session directives for Issues are scoped within the `/issues-login`, `/cgi-bin/issues.cgi`, and `/issues-logout` locations; they are not declared at server scope.
+- Apache validates credentials and supplies the authenticated username through `REMOTE_USER`; Issues must never inspect, store, or log passwords.
 - The login form uses the field names defined by `AUTH_FORM_USERNAME_FIELD`, `AUTH_FORM_PASSWORD_FIELD`, and `AUTH_FORM_LOCATION_FIELD`.
 - The login form includes a destination field using `AUTH_FORM_DEFAULT_LOCATION` unless a safe destination is supplied. The default destination is `/cgi-bin/issues.cgi`.
 - The login action accepts an explicit safe destination supplied in the login request using `AUTH_FORM_LOCATION_FIELD` or any name in `AUTH_FORM_LOCATION_ALIASES`.
@@ -242,6 +246,7 @@ SEARCH_HISTORY_LIMIT - `10`
 - The login form and authentication support pages must not state or imply what authentication mechanism, server module, or backend service is being used.
 - The login form and authentication support pages must not mention Apache, PAM, web server authentication, server-side authentication, or similar implementation details in user-facing text.
 - The application must not store, log, echo, or otherwise process submitted passwords.
+- Apache validates form-authentication credentials and supplies the authenticated username through `REMOTE_USER`; Issues does not inspect, store, or log passwords.
 - All normal issue-tracking actions continue to require a valid `REMOTE_USER`.
 - If `REMOTE_USER` is invalid for a protected action, the application returns an authentication or authorization error with an appropriate HTTP status code.
 
