@@ -764,6 +764,8 @@ The tests shall verify:
 - Per-user search history displays newest first.
 - Reusing a search term moves it to the top of search history.
 - Search-history removal deletes only the selected search term.
+- Removing the active search-history term clears the active search in the redirect and saved preferences, so it is not reapplied to history.
+- Removing a different search-history term preserves the active search and the remaining list filters.
 - Search-history clearing removes all search-history terms.
 - Search matches issue title.
 - Search matches issue description.

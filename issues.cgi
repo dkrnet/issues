@@ -2423,9 +2423,9 @@ def action_contributing_users_update(form: cgi.FieldStorage, username: str) -> N
     redirect(action_url("view", id=issue_id))
 
 
-def search_history_redirect(form: cgi.FieldStorage, username: str) -> None:
+def search_history_redirect(form: cgi.FieldStorage, username: str, cfg: Optional[dict[str, Any]] = None) -> None:
     admin = is_admin(username)
-    cfg = list_cfg_from_form(form, load_user_config(username, admin), admin)
+    cfg = cfg or list_cfg_from_form(form, load_user_config(username, admin), admin)
     page = parse_page_number(form)
     redirect(action_url("list", **list_request_params(cfg, page, admin)))
 
@@ -2433,10 +2433,15 @@ def search_history_redirect(form: cgi.FieldStorage, username: str) -> None:
 def action_search_history_remove(form: cgi.FieldStorage, username: str) -> None:
     term = field_value(form, "term").strip()
     history = [item for item in load_user_search_history(username) if item != term]
-    cfg = list_cfg_from_form(form, load_user_config(username, is_admin(username)), is_admin(username))
+    admin = is_admin(username)
+    cfg = list_cfg_from_form(form, load_user_config(username, admin), admin)
+    if cfg.get("search", "").strip() == term:
+        # REGRESSION GUARD: Removing the active term must clear it before
+        # redirecting, or the list reloads the term and adds it back to history.
+        cfg["search"] = ""
     cfg["search_history"] = history
     save_user_config(username, cfg)
-    search_history_redirect(form, username)
+    search_history_redirect(form, username, cfg)
 
 
 def action_search_history_clear(form: cgi.FieldStorage, username: str) -> None:
