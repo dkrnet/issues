@@ -374,7 +374,6 @@ textarea {{ width: 100%; min-height: 12rem; }}
 .search-history-delete {{ flex: 0 0 auto; border: 0; background: transparent; color: #333; padding: 0.15rem 0.35rem; text-decoration: none; font: inherit; font-size: 1.05rem; line-height: 1; }}
 .search-history-empty {{ margin: 0; padding: 0.5rem; color: #666; }}
 .search-history-clear {{ border-top: 1px solid #ddd; padding: 0.4rem; text-align: center; }}
-.search-history-clear button {{ border: 1px solid #bbb; background: #f7f7f7; color: #333; padding: 0.2rem 0.55rem; }}
 .dual-listbox {{ display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin: 0.4rem 0; }}
 .dual-listbox-column {{ display: flex; flex-direction: column; gap: 0.25rem; }}
 .dual-listbox-column select {{ min-width: 12rem; width: clamp(12rem, 22vw, 18rem); }}
@@ -409,7 +408,7 @@ textarea {{ width: 100%; min-height: 12rem; }}
 .markdown-body code {{ font-family: Menlo, Consolas, monospace; font-size: 0.95em; }}
 pre {{ overflow-x: auto; background: #f3f3f3; padding: 0.5rem; }}
 .form-actions {{ display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }}
-.form-actions input[type=submit], .form-actions button, .form-actions .button-link {{ box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-height: 1.65rem; border: 1px solid #999; border-radius: 2px; padding: 0.15rem 0.55rem; background: #f4f4f4; color: #111; font-size: 0.85rem; font-weight: 400; text-decoration: none; line-height: 1.2; }}
+button:not(.search-history-toggle):not(.search-history-term):not(.search-history-delete), input[type=submit], .button-link {{ box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-height: 1.65rem; border: 1px solid #999; border-radius: 2px; padding: 0.15rem 0.55rem; background: #f4f4f4; color: #111; font-size: 0.85rem; font-weight: 400; text-decoration: none; line-height: 1.2; }}
 button, input[type=submit] {{ cursor: pointer; }}
 </style>
 <script>

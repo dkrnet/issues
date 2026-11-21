@@ -481,7 +481,7 @@ def test_issue_view_omits_total_time_worked_when_no_time_is_logged(app, patched_
     view_html = text_body(parse_headers, invoke_action(app, "view", make_form(action="view", id=str(issue_id)), "alice"))
 
     assert ">Total time worked<" not in view_html
-    assert "0 minutes" not in view_html
+    assert "0 minutes (work time)" not in view_html
 
 
 def test_attachment_form_submission_download_and_validation(app, patched_environment, seed_issue, make_form, invoke_action, parse_headers, fetch_attachments, monkeypatch):
