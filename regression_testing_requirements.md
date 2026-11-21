@@ -648,6 +648,9 @@ The tests shall verify:
 - Previous and Next controls navigate to the intended adjacent page rather than remaining on the current page or returning to the first page.
 - The page dropdown does not submit a competing `page` value that can override Previous or Next.
 - The issue list renders no more than 25 issues on a page.
+- Issue links preserve the current page and active list filters in a same-site return destination.
+- The issue view Back to list control returns to that preserved list destination.
+- Missing or unsafe list return destinations fall back to the default issue list.
 - Page navigation preserves active filters and user preference values.
 - Missing, invalid, non-numeric, and out-of-range page values select a valid page safely.
 - When filter changes reduce the number of available pages, the selected page is normalized to a valid page.
