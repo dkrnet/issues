@@ -650,6 +650,7 @@ The tests shall verify:
 - The issue list renders no more than 25 issues on a page.
 - Issue links preserve the current page and active list filters in a same-site return destination.
 - The issue view Back to list control returns to that preserved list destination.
+- Submitting the Back to list form redirects to its validated `return_to` destination, preserving the active search and current page.
 - Missing or unsafe list return destinations fall back to the default issue list.
 - Page navigation preserves active filters and user preference values.
 - Missing, invalid, non-numeric, and out-of-range page values select a valid page safely.

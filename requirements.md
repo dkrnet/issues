@@ -1517,6 +1517,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue list supports pagination after filters are applied.
 - Issue links from the list preserve the current list page and active filter values for the issue view's Back to list action.
 - The Back to list action returns to the captured same-site list URL, falling back to the default issue list when the captured URL is missing or unsafe.
+- Submitting the Back to list control redirects to that captured URL instead of rendering a new list with the default page or filters.
 - The issue view shows comments in reverse chronological order.
 - The issue view shows attachments in chronological order.
 - The issue view shows total time worked calculated from all comment time-worked entries only when the total is greater than 0 minutes.

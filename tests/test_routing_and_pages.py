@@ -298,14 +298,15 @@ def test_issue_view_back_to_list_preserves_page_and_filters(app, patched_environ
     list_html = _html(parse_headers, invoke_action(
         app,
         "list",
-        make_form(action="list", status="open", priority="high", assignee="bob", state="in progress", page="2"),
+        make_form(action="list", status="open", priority="any", assignee="bob", state="not started", search="Return issue", page="2"),
         "alice",
     ))
     assert "Return issue 05" in list_html
     assert "return_to=issues.cgi%3Faction%3Dlist%26" in list_html
     assert "page%3D2" in list_html
-    issue_id = 6
-    return_to = "issues.cgi?action=list&status=open&priority=high&assignee=bob&state=in+progress&page=2"
+    assert "search%3DReturn%2Bissue" in list_html
+    issue_id = 5
+    return_to = "issues.cgi?action=list&status=open&priority=any&assignee=bob&state=not+started&search=Return+issue&auto_refresh=never&page=2&due_date=any"
     view_html = _html(parse_headers, invoke_action(
         app,
         "view",
@@ -313,6 +314,26 @@ def test_issue_view_back_to_list_preserves_page_and_filters(app, patched_environ
         "alice",
     ))
     assert f'name="return_to" value="{return_to.replace("&", "&amp;")}"' in view_html
+
+    back_output = invoke_action(
+        app,
+        "list",
+        make_form(action="list", return_to=return_to),
+        "alice",
+    )
+    status, headers, _body = parse_headers(back_output)
+    assert status.startswith(("302", "303"))
+    assert headers["location"] == return_to
+
+    unsafe_back_output = invoke_action(
+        app,
+        "list",
+        make_form(action="list", return_to="https://example.invalid/issues.cgi?action=list&page=2"),
+        "alice",
+    )
+    unsafe_status, unsafe_headers, _body = parse_headers(unsafe_back_output)
+    assert unsafe_status.startswith(("302", "303"))
+    assert unsafe_headers["location"] == "issues.cgi?action=list"
 
 
 

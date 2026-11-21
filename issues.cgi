@@ -1935,6 +1935,12 @@ def distinct_issue_values(
 
 
 def action_list(form: cgi.FieldStorage, username: str) -> None:
+    return_to = field_value(form, "return_to").strip()
+    if return_to:
+        # REGRESSION GUARD: Back to list submits this captured destination;
+        # rendering a fresh list here loses the search term and current page.
+        redirect(safe_return_url(return_to, action_url("list")))
+
     admin = is_admin(username)
     submitted = list_filter_submitted(form)
     cfg = load_user_config(username, admin)
