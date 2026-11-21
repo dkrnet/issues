@@ -902,7 +902,9 @@ The tests shall verify:
 - Total time worked is calculated from all saved comment time-worked entries for the issue.
 - Total time worked uses labeled compact format and includes trailing zero-value units required by the selected display range.
 - Comments display in reverse chronological order.
-- Comment metadata displays saved time worked at the end of the metadata line using compact labeled format.
+- Comment metadata displays the commenter/timestamp separately from the saved time-worked value.
+- Saved time worked displays on its own line immediately below commenter/timestamp metadata using compact labeled format and includes `(work time)`.
+- Comments without saved time worked do not display a time-worked metadata line.
 - Attachments display in chronological order.
 - Completed-at information displays only when the issue is closed or canceled.
 - A non-open issue with no due date displays a blank due-date value rather than the open-issue placeholder.

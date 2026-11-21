@@ -641,7 +641,7 @@ To rebuild the application from scratch, the database must provide:
 - The issue view page title displays the issue id and issue title in the form `Issue N - Title`.
 - The issue metadata table displays total time worked between the Status and Due date rows only when the total time worked is greater than 0 minutes.
 - The issue total time worked is calculated from all saved time-worked entries for the issue across all actors.
-- Comment metadata displays saved time worked in compact form at the end of the metadata line, for example `Alice Adams at 2026-06-03 14:25:10 PDT (Time worked: 2 hours, 30 minutes (work time))`.
+- Comment metadata displays the commenter and timestamp on one line. When saved time worked exists, it displays on a dedicated line immediately below the commenter/timestamp line in compact form, for example `Time worked: 2 hours, 30 minutes (work time)`.
 - The acting user requires access to the issue: the acting user is the issue creator, assigned user, contributing user, or a system administrator.
 - **Edit Title & Description** displays only when the issue is open and the acting user is the issue owner or a system administrator.
 - **Close** displays only when the issue is open and the acting user is the issue owner, the assigned user, or a system administrator.

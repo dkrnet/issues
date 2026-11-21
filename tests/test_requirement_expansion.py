@@ -469,8 +469,9 @@ def test_comment_time_worked_parsing_storage_invalid_preservation_and_display(ap
     assert "(wall clock)" in view_html
     assert "(work time)" in view_html
     assert "1 week, 0 days, 4 hours, 0 minutes (work time)" in view_html
-    assert "Time worked: 2 hours, 30 minutes (work time)" in view_html
-    assert "Time worked: 1 week, 0 days, 1 hour, 30 minutes (work time)" in view_html
+    assert "<div class='comment-time-worked'>Time worked: 2 hours, 30 minutes (work time)</div>" in view_html
+    assert "<div class='comment-time-worked'>Time worked: 1 week, 0 days, 1 hour, 30 minutes (work time)</div>" in view_html
+    assert "comment-meta" in view_html
 
 
 def test_issue_view_omits_total_time_worked_when_no_time_is_logged(app, patched_environment, seed_issue, seed_comment, make_form, invoke_action, parse_headers):
