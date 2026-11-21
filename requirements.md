@@ -65,7 +65,7 @@ SEARCH_HISTORY_LIMIT - maximum number of per-user issue-list search terms retain
 
 DB_FILE - `/var/lib/issues/issues.db`  
 DEFAULT_CLOSING_COMMENT - `no comment provided`  
-ISSUES_VERSION - `1.0.0`  
+ISSUES_VERSION - `1.0.1`
 MAX_UPLOAD_BYTES - `10485760`  
 ASSIGNEE_GROUP - `users`  
 ASSIGNEE_EXCLUDE - empty string  
@@ -213,7 +213,7 @@ SEARCH_HISTORY_LIMIT - `10`
 
 - Changes committed to the local repository must be committed on a development branch.
 - Changes committed to the local repository must not be committed directly on `main`.
-- Immediately before committing ordinary source changes, the `ISSUES_VERSION` assignment in `issues.cgi` must match the source default value documented under Variable Initial Values, currently `1.0.0`.
+- Immediately before committing ordinary source changes, the `ISSUES_VERSION` assignment in `issues.cgi` must match the source default value documented under Variable Initial Values, currently `1.0.1`.
 - The source-default `ISSUES_VERSION` commit requirement does not apply to intentional build-output or release-stamping commits whose purpose is to record a generated `x.y.z-dev.N+GITID` or `x.y.z+GITID` value.
 
 # Access and Authentication Requirements
