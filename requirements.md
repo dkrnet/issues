@@ -163,6 +163,8 @@ SEARCH_HISTORY_LIMIT - `10`
 - Page-level action rows, form submit rows, pagination rows, filter rows, inline edit forms, and compact utility controls must use shared spacing rules instead of page-specific ad hoc margins.
 - Grouped controls in the same row must use explicit row gaps. The standard horizontal gap between related controls is approximately `0.6rem` to `0.75rem`; tighter compound controls, such as pagination buttons around a page selector, may use a smaller gap of approximately `0.4rem`.
 - Form submit rows must use the shared form-action spacing and button/link sizing so submit buttons and cancel links align consistently across create, update, comment, attach, close, cancel, login, and contributing-user management forms.
+- Standard action buttons throughout the application use the same explicit visual style as issue-view action buttons, including form submit buttons, standalone buttons, and button-like cancel links; page-specific form rows may change spacing but not button appearance.
+- Search-history term, search-history toggle, and search-history delete controls retain their distinct text or icon-only treatment because they operate as compact controls embedded inside the search field. Dual-list transfer buttons retain a compact width while sharing the standard button appearance.
 - Issue-list and issue-history pagination control rows must use the same vertical spacing, table adjacency spacing, and right-aligned pagination style.
 - Static and Dynamic issue-list filter groups must use the same row-wrapping and inter-control spacing model, with the Search control allowed to align to the right side of the Static filter row when horizontal space permits.
 - Inline edit controls rendered inside issue metadata tables must use compact inline form spacing so adjacent inputs, selectors, and submit buttons are visually separated consistently.
@@ -658,7 +660,7 @@ To rebuild the application from scratch, the database must provide:
 - Assignee, Priority, and State field changes are saved when the user changes the corresponding field value.
 - Percent complete and Due date values are saved when the user clicks the corresponding button.
 - The Percent complete button and Due date button are not clickable until the user changes the value of the corresponding field.
-- Issue view action items use a consistent UI element form; action items must not mix links, buttons, and other control styles.
+- Issue view action items use a consistent UI element form and standard button appearance; action items must not mix links, buttons, and other control styles.
 - The **Add** comment link displays only when the issue is open and the acting user is the issue creator, assigned user, contributing user, or a system administrator.
 - The **Add** attachment link displays only when the issue is open and the acting user is the issue creator, assigned user, contributing user, or a system administrator.
 - Contributing-user management displays on the issue view page.

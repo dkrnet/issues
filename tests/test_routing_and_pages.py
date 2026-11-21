@@ -76,7 +76,8 @@ def test_public_authentication_actions_are_routed_without_user_lookup(app, patch
         assert "<html" in html.lower()
         if action == "login":
             assert 'class="form-actions"' in html
-            assert '.form-actions input[type=submit], .form-actions button, .form-actions .button-link' in html
+            assert 'button:not(.search-history-toggle):not(.search-history-term):not(.search-history-delete), input[type=submit], .button-link {' in html
+            assert '.form-actions input[type=submit]' not in html
     status, headers, body = parse_headers(invoke_action(app, action="favicon", form=make_form(action="favicon"), user=None))
     assert "403" not in status
     assert headers.get("content-type", "").startswith("image/x-icon")
@@ -128,7 +129,7 @@ def test_list_page_has_required_structure_new_filters_and_no_legacy_all_users_co
     assert 'flex: 1 1 auto' in admin_html and 'align-self: stretch' in admin_html
     assert '.search-history-delete' in admin_html and 'color: #333' in admin_html
     assert 'font-size: 1.05rem' in admin_html
-    assert '.search-history-clear button' in admin_html
+    assert 'button:not(.search-history-toggle):not(.search-history-term):not(.search-history-delete), input[type=submit], .button-link {' in admin_html
     assert static_html.find('class="static-filter-left"') < static_html.find('class="static-filter-search"')
     assert static_html.find('name="has_attachments"') < static_html.find('name="search"')
     assert 'name="priority"' not in static_html
@@ -250,6 +251,13 @@ def test_view_page_authorization_and_role_specific_controls(app, patched_environ
     assert '.actions {' in creator_html and 'gap: 0.65rem' in creator_html
     assert 'form.inline { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; }' in creator_html
     assert 'class="form-actions"><input type="submit" value="Update contributing users">' in creator_html
+    standard_button_rule = 'button:not(.search-history-toggle):not(.search-history-term):not(.search-history-delete), input[type=submit], .button-link {'
+    assert standard_button_rule in creator_html
+    assert 'class="actions"' in creator_html and '<input type="submit" value="Add comment">' in creator_html
+    comment_html = _html(parse_headers, invoke_action(app, "comment", make_form(action="comment", id=str(issue_id)), "alice"))
+    assert standard_button_rule in comment_html
+    assert 'class="form-actions"><input type="submit" value="Add comment">' in comment_html
+    assert '.form-actions input[type=submit]' not in comment_html
     assert ".comment-meta" in creator_html and "font-size: 0.9rem" in creator_html
     assert ".markdown-body h1" in creator_html and ".markdown-body h2" in creator_html and ".markdown-body code" in creator_html
     assert "percent" in assigned_html.lower() or "complete" in assigned_html.lower()
