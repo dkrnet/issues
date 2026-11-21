@@ -2054,11 +2054,12 @@ def action_list(form: cgi.FieldStorage, username: str) -> None:
 <div class="list-control-right" style="float:right;text-align:right;white-space:nowrap;">{pagination_bottom}</div>
 </div>'''
     body = [filter_form, top_controls, "<table class='issue-list-table'><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Due</th><th>Priority</th><th>Creator</th><th>Assignee</th><th>State</th><th>% Complete</th><th>Comments</th><th>Attachments</th><th>Updated</th></tr></thead><tbody>"]
+    list_return_url = action_url("list", **list_request_params(cfg, page, admin))
     for r in rows:
         body.append(
             "<tr>"
             f"<td>{h(r['id'])}</td>"
-            f"<td><a href=\"{h(action_url('view', id=r['id']))}\">{h(r['title'])}</a></td>"
+            f"<td><a href=\"{h(action_url('view', id=r['id'], return_to=list_return_url))}\">{h(r['title'])}</a></td>"
             f"<td>{h(r['status'])}</td>"
             f"<td>{h(r['due_date'])}</td>"
             f"<td>{h(r['priority'])}</td>"
@@ -2104,7 +2105,8 @@ def action_view(form: cgi.FieldStorage, username: str) -> None:
     user_is_contributing = username in contributing_users
     can_comment_attach = open_issue and (owner_or_admin or assigned or user_is_contributing)
 
-    actions: list[str] = [render_action_button("list", "Back to list")]
+    list_return_url = safe_return_url(field_value(form, "return_to"), action_url("list"))
+    actions: list[str] = [render_action_button("list", "Back to list", return_to=list_return_url)]
     actions.append(render_action_button("history", "History", id=issue_id))
     if open_issue and owner_or_admin:
         actions.append(render_action_button("update", "Edit Title & Description", id=issue_id))

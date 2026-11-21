@@ -283,6 +283,31 @@ def test_issue_list_pagination_limits_to_25_and_navigates_pages(app, patched_env
     assert "Paged issue 30" not in page_two
 
 
+def test_issue_view_back_to_list_preserves_page_and_filters(app, patched_environment, seed_issue, invoke_action, make_form, parse_headers):
+    for number in range(1, 31):
+        seed_issue(title=f"Return issue {number:02d}", creator_username="alice", assigned_username="bob", status="open")
+
+    list_html = _html(parse_headers, invoke_action(
+        app,
+        "list",
+        make_form(action="list", status="open", priority="high", assignee="bob", state="in progress", page="2"),
+        "alice",
+    ))
+    assert "Return issue 05" in list_html
+    assert "return_to=issues.cgi%3Faction%3Dlist%26" in list_html
+    assert "page%3D2" in list_html
+    issue_id = 6
+    return_to = "issues.cgi?action=list&status=open&priority=high&assignee=bob&state=in+progress&page=2"
+    view_html = _html(parse_headers, invoke_action(
+        app,
+        "view",
+        make_form(action="view", id=str(issue_id), return_to=return_to),
+        "alice",
+    ))
+    assert f'name="return_to" value="{return_to.replace("&", "&amp;")}"' in view_html
+
+
+
 def test_issue_history_page_authorization_pagination_and_metadata_only(app, patched_environment, seed_issue, seed_attachment, make_form, invoke_action, parse_headers, temp_db):
     issue_id = seed_issue(title="History paged", creator_username="alice", assigned_username="bob", status="open")
     attachment_id = seed_attachment(issue_id, filename="metadata.txt", content=b"secret blob content")
